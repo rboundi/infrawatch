@@ -7,9 +7,26 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "@types/dockerode": "^4.0.1",
+    "@types/ssh2": "^1.15.5",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.1018.0",
+    "@aws-sdk/client-ecs": "^3.1018.0",
+    "@aws-sdk/client-eks": "^3.1018.0",
+    "@aws-sdk/client-lambda": "^3.1018.0",
+    "@aws-sdk/client-rds": "^3.1018.0",
+    "@kubernetes/client-node": "^1.4.0",
+    "axios": "^1.13.6",
+    "dockerode": "^4.0.10",
+    "fast-xml-parser": "^5.5.8",
+    "ssh2": "^1.17.0"
   }
 }

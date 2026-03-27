@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "PostgreSQL",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "postgres", "-d"],
+      "port": 5433
+    },
+    {
+      "name": "API Server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "watch", "packages/server/src/index.ts"],
+      "port": 3001
+    },
+    {
+      "name": "Web Frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
+      "port": 5173,
+      "cwd": "packages/web",
+      "env": {
+        "API_URL": "http://localhost:3002"
+      }
+    },
+    {
+      "name": "Full Stack (Docker Compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "up", "--build"],
+      "port": 3002,
+      "autoPort": false
+    }
+  ]
+}

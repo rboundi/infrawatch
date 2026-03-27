@@ -16,4 +16,6 @@ export const config = {
   },
   alertEmail: process.env.ALERT_EMAIL ?? "",
   nodeEnv: process.env.NODE_ENV ?? "development",
+  versionCheckIntervalHours: parseInt(process.env.VERSION_CHECK_INTERVAL_HOURS ?? "12", 10),
+  alertDigestHour: parseInt(process.env.ALERT_DIGEST_HOUR ?? "8", 10),
 } as const;

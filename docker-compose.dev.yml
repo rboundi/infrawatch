@@ -1,9 +1,11 @@
 services:
   api:
     volumes:
-      - ./packages/server/src:/app/src
-      - ./packages/server/tsconfig.json:/app/tsconfig.json
-    command: npx tsx watch src/index.ts
+      - ./packages/server/src:/app/packages/server/src
+      - ./packages/server/tsconfig.json:/app/packages/server/tsconfig.json
+      - ./packages/scanner/src:/app/packages/scanner/src
+    command: npx tsx watch packages/server/src/index.ts
+    working_dir: /app
 
   web:
     volumes:
