@@ -15,6 +15,7 @@ import { createDiscoveryRoutes } from "./routes/discovery.js";
 import { createChangeRoutes } from "./routes/changes.js";
 import { createEolRoutes } from "./routes/eol.js";
 import { createReportRoutes } from "./routes/reports.js";
+import { createNotificationRoutes } from "./routes/notifications.js";
 import { createErrorHandler } from "./middleware/error-handler.js";
 import { apiKeyAuth } from "./middleware/api-key.js";
 import { ScanOrchestrator } from "./services/scan-orchestrator.js";
@@ -24,6 +25,7 @@ import { EmailNotifier } from "./services/email-notifier.js";
 import { ChangeDetector } from "./services/change-detector.js";
 import { EolChecker } from "./services/eol-checker.js";
 import { ReportGenerator } from "./services/reports/report-generator.js";
+import { NotificationService } from "./services/notifications/notification-service.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -145,7 +147,7 @@ app.use("/api/v1/targets/:id/test", scanLimiter);
 // Auth limiter placeholder for future auth routes
 app.use("/api/v1/auth", authLimiter);
 
-// ─── Background services (instantiated before routes — reportGenerator needed by report routes) ───
+// ─── Background services (instantiated before routes — reportGenerator/notificationService needed by routes) ───
 const orchestrator = new ScanOrchestrator(pool, logger);
 const staleChecker = new StaleHostChecker(pool, logger);
 const versionChecker = new VersionChecker(pool, logger);
@@ -153,6 +155,13 @@ const emailNotifier = new EmailNotifier(pool, logger);
 const changeDetector = new ChangeDetector(pool, logger);
 const eolChecker = new EolChecker(pool, logger);
 const reportGenerator = new ReportGenerator(pool, logger);
+const notificationService = new NotificationService(pool, logger);
+
+// Wire notification service into background services
+orchestrator.setNotificationService(notificationService);
+staleChecker.setNotificationService(notificationService);
+versionChecker.setNotificationService(notificationService);
+eolChecker.setNotificationService(notificationService);
 
 // ─── Routes ───
 app.use("/api/v1/targets", createScanTargetRoutes(pool, logger));
@@ -163,6 +172,7 @@ app.use("/api/v1/discovery", createDiscoveryRoutes(pool, logger));
 app.use("/api/v1/changes", createChangeRoutes(pool, logger));
 app.use("/api/v1/eol", createEolRoutes(pool, logger));
 app.use("/api/v1/reports", createReportRoutes(pool, logger, reportGenerator));
+app.use("/api/v1/notifications", createNotificationRoutes(pool, logger, notificationService));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
@@ -191,6 +201,24 @@ async function start() {
 
   // Start report generator (loads cron schedules from DB)
   await reportGenerator.start();
+
+  // Start notification service
+  notificationService.start();
+
+  // Daily digest at configured hour (default 8 AM)
+  const scheduleDigest = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(config.alertDigestHour, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    const delay = next.getTime() - now.getTime();
+    setTimeout(() => {
+      notificationService.sendDailyDigest();
+      // Schedule next run 24h later
+      setInterval(() => notificationService.sendDailyDigest(), 24 * 60 * 60 * 1000);
+    }, delay);
+  };
+  scheduleDigest();
 
   // Daily snapshot scheduler — take a snapshot on startup and then every 24h
   changeDetector.takeSnapshot();
@@ -221,6 +249,7 @@ async function start() {
     emailNotifier.stop();
     eolChecker.stop();
     reportGenerator.stop();
+    notificationService.stop();
     clearInterval(snapshotTimer);
     logger.info("Background services stopped");
 

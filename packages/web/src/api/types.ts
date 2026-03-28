@@ -313,3 +313,50 @@ export interface GeneratedReport {
   metadata: Record<string, unknown>;
   createdAt: string;
 }
+
+// ─── Notification types ───
+
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  channelType: "ms_teams" | "slack" | "generic_webhook" | "email";
+  webhookUrl: string | null;
+  config: Record<string, unknown>;
+  filters: {
+    minSeverity?: string;
+    eventTypes?: string[];
+    environments?: string[];
+  };
+  enabled: boolean;
+  lastSentAt: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationLogEntry {
+  id: string;
+  channelId: string;
+  channelName: string | null;
+  channelType: string | null;
+  eventType: string;
+  payload: Record<string, unknown>;
+  status: "sent" | "failed" | "throttled";
+  errorMessage: string | null;
+  responseCode: number | null;
+  createdAt: string;
+}
+
+export interface NotificationLogStats {
+  sent24h: number;
+  failed24h: number;
+  throttled24h: number;
+  byChannel: Array<{
+    id: string;
+    name: string;
+    channelType: string;
+    sent: number;
+    failed: number;
+  }>;
+}

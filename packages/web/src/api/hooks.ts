@@ -329,3 +329,65 @@ export function useGenerateReportPreview() {
     },
   });
 }
+
+// ─── Notification hooks ───
+
+export function useNotificationChannels() {
+  return useQuery({
+    queryKey: ["notifications", "channels"],
+    queryFn: () => get<import("./types").NotificationChannel[]>("/notifications/channels"),
+  });
+}
+
+export function useCreateNotificationChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      name: string; channelType: string; webhookUrl?: string;
+      config?: Record<string, unknown>; filters?: Record<string, unknown>; enabled?: boolean;
+    }) => post<import("./types").NotificationChannel>("/notifications/channels", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
+}
+
+export function useUpdateNotificationChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Partial<{
+      name: string; channelType: string; webhookUrl: string;
+      config: Record<string, unknown>; filters: Record<string, unknown>; enabled: boolean;
+    }>) => patch<import("./types").NotificationChannel>(`/notifications/channels/${id}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
+}
+
+export function useDeleteNotificationChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/notifications/channels/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
+}
+
+export function useTestNotificationChannel() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      post<{ success: boolean; message: string; responseCode?: number }>(`/notifications/channels/${id}/test`),
+  });
+}
+
+export function useNotificationLog(params: { page?: number; limit?: number; channelId?: string } = {}) {
+  return useQuery({
+    queryKey: ["notifications", "log", params],
+    queryFn: () =>
+      get<PaginatedResponse<import("./types").NotificationLogEntry>>("/notifications/log", params as Record<string, unknown>),
+  });
+}
+
+export function useNotificationLogStats() {
+  return useQuery({
+    queryKey: ["notifications", "log", "stats"],
+    queryFn: () => get<import("./types").NotificationLogStats>("/notifications/log/stats"),
+    refetchInterval: 30_000,
+  });
+}

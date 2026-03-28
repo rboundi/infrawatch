@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import semver from "semver";
 import { config } from "../config.js";
 import { fetchWellKnownVersion, VERSION_SOURCES } from "./version-sources.js";
+import type { NotificationService } from "./notifications/notification-service.js";
 
 interface VersionCheckerOptions {
   /** How often to run (ms). Default: from config (12 hours) */
@@ -32,6 +33,7 @@ export class VersionChecker {
   private stopping = false;
   private checkIntervalMs: number;
   private initialDelayMs: number;
+  private notificationService?: NotificationService;
 
   constructor(
     private pool: pg.Pool,
@@ -41,6 +43,10 @@ export class VersionChecker {
     this.checkIntervalMs =
       options?.checkIntervalMs ?? config.versionCheckIntervalHours * 60 * 60 * 1000;
     this.initialDelayMs = options?.initialDelayMs ?? 60_000;
+  }
+
+  setNotificationService(ns: NotificationService): void {
+    this.notificationService = ns;
   }
 
   start(): void {
@@ -111,6 +117,13 @@ export class VersionChecker {
         alertsCreated = await this.generateAlerts();
       }
 
+      // 4. Send aggregated notification if there were new alerts
+      if (alertsCreated > 0 && this.notificationService) {
+        await this.sendAlertDigestNotification(alertsCreated).catch((err) =>
+          this.logger.error({ err }, "Failed to send version alert notification")
+        );
+      }
+
       this.logger.info(
         { packagesChecked, alertsCreated },
         `Version check complete: ${packagesChecked} packages checked, ${alertsCreated} new alerts created`
@@ -120,6 +133,38 @@ export class VersionChecker {
     } finally {
       this.running = false;
     }
+  }
+
+  private async sendAlertDigestNotification(alertsCreated: number): Promise<void> {
+    // Query summary of recently created critical/high alerts
+    const result = await this.pool.query<{ severity: string; cnt: string }>(
+      `SELECT severity, COUNT(*) AS cnt
+       FROM alerts
+       WHERE created_at > NOW() - INTERVAL '1 hour'
+         AND severity IN ('critical', 'high')
+       GROUP BY severity`
+    );
+
+    const bySeverity: Record<string, number> = {};
+    for (const row of result.rows) {
+      bySeverity[row.severity] = parseInt(row.cnt, 10);
+    }
+
+    const critical = bySeverity.critical ?? 0;
+    const high = bySeverity.high ?? 0;
+
+    if (critical === 0 && high === 0) return; // only notify for critical/high
+
+    await this.notificationService!.notify({
+      eventType: "alert_created",
+      severity: critical > 0 ? "critical" : "high",
+      title: `${alertsCreated} New Version Alerts`,
+      summary: `Version check found ${alertsCreated} new alerts (${critical} critical, ${high} high).`,
+      details: {
+        alertsBySeverity: bySeverity,
+        affectedHostCount: alertsCreated,
+      },
+    });
   }
 
   private async getPackageGroups(): Promise<PackageGroup[]> {

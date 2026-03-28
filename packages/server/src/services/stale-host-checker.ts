@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { Logger } from "pino";
 import { ChangeDetector } from "./change-detector.js";
+import type { NotificationService } from "./notifications/notification-service.js";
 
 interface StaleHostCheckerOptions {
   /** How often to check for stale hosts (ms). Default: 1 hour */
@@ -17,6 +18,7 @@ export class StaleHostChecker {
   private checkIntervalMs: number;
   private staleThresholdHours: number;
   private changeDetector: ChangeDetector;
+  private notificationService?: NotificationService;
 
   constructor(
     private pool: pg.Pool,
@@ -26,6 +28,10 @@ export class StaleHostChecker {
     this.checkIntervalMs = options?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
     this.staleThresholdHours = options?.staleThresholdHours ?? DEFAULT_STALE_THRESHOLD_HOURS;
     this.changeDetector = new ChangeDetector(pool, logger);
+  }
+
+  setNotificationService(ns: NotificationService): void {
+    this.notificationService = ns;
   }
 
   start(): void {
@@ -67,7 +73,7 @@ export class StaleHostChecker {
           `Marked ${result.rowCount} host(s) as stale`
         );
 
-        // Emit host_disappeared change events
+        // Emit host_disappeared change events and notifications
         for (const row of result.rows) {
           try {
             await this.changeDetector.recordChangeDirect({
@@ -81,6 +87,21 @@ export class StaleHostChecker {
             });
           } catch (changeErr) {
             this.logger.error({ err: changeErr, hostname: row.hostname }, "Failed to record host_disappeared event");
+          }
+
+          // Send notification
+          if (this.notificationService) {
+            this.notificationService.notify({
+              eventType: "host_disappeared",
+              severity: "high",
+              title: `Host Disappeared: ${row.hostname}`,
+              summary: `Host ${row.hostname} has not been seen in ${this.staleThresholdHours} hours and was marked stale.`,
+              details: {
+                hostname: row.hostname,
+                hostId: row.id,
+                lastSeenAt: new Date().toISOString(),
+              },
+            }).catch((err) => this.logger.error({ err }, "Failed to send host_disappeared notification"));
           }
         }
       }

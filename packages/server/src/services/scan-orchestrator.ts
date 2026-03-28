@@ -4,6 +4,7 @@ import { createScanner } from "@infrawatch/scanner";
 import { decrypt } from "../utils/crypto.js";
 import { config } from "../config.js";
 import { DataIngestionService } from "./data-ingestion.js";
+import type { NotificationService } from "./notifications/notification-service.js";
 
 interface OrchestratorOptions {
   /** How often to check for targets due for scanning (ms). Default: 5 minutes */
@@ -22,6 +23,7 @@ export class ScanOrchestrator {
   private checkIntervalMs: number;
   private scanTimeoutMs: number;
   private ingestion: DataIngestionService;
+  private notificationService?: NotificationService;
 
   constructor(
     private pool: pg.Pool,
@@ -31,6 +33,10 @@ export class ScanOrchestrator {
     this.checkIntervalMs = options?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
     this.scanTimeoutMs = options?.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS;
     this.ingestion = new DataIngestionService(pool, logger);
+  }
+
+  setNotificationService(ns: NotificationService): void {
+    this.notificationService = ns;
   }
 
   /**
@@ -220,6 +226,20 @@ export class ScanOrchestrator {
          WHERE id = $2`,
         [errorMessage, target.id]
       ).catch(() => {});
+
+      // Send scan_failed notification
+      if (this.notificationService) {
+        this.notificationService.notify({
+          eventType: "scan_failed",
+          severity: "high",
+          title: `Scan Failed: ${target.name}`,
+          summary: `Scan target "${target.name}" (${target.type}) failed: ${errorMessage}`,
+          details: {
+            targetName: target.name,
+            errorMessage,
+          },
+        }).catch(() => {});
+      }
     }
   }
 }

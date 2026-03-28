@@ -10,6 +10,7 @@ import {
   GitCommitHorizontal,
   Hourglass,
   FileText,
+  BellRing,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 
@@ -22,6 +23,7 @@ const nav = [
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/targets", label: "Scan Targets", icon: Radar },
+  { to: "/settings/notifications", label: "Notifications", icon: BellRing },
 ];
 
 export function Layout() {

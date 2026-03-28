@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import { readFileSync } from "fs";
 import { ChangeDetector } from "./change-detector.js";
+import type { NotificationService } from "./notifications/notification-service.js";
 
 interface EolDefinition {
   id: string;
@@ -154,12 +155,17 @@ export class EolChecker {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private changeDetector: ChangeDetector;
+  private notificationService?: NotificationService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger
   ) {
     this.changeDetector = new ChangeDetector(pool, logger);
+  }
+
+  setNotificationService(ns: NotificationService): void {
+    this.notificationService = ns;
   }
 
   /** Seed definitions from JSON on first run */
@@ -374,6 +380,23 @@ export class EolChecker {
               });
             } catch {
               // change_events may not accept eol_detected yet, that's ok
+            }
+
+            // Send notification
+            if (this.notificationService) {
+              this.notificationService.notify({
+                eventType: "eol_detected",
+                severity: daysPastEol > 0 ? "high" : "medium",
+                title: `EOL Detected: ${match.productName} ${match.installedVersion}`,
+                summary: `${match.productName} ${match.installedVersion} on ${host.hostname} ${daysPastEol > 0 ? `reached EOL ${daysPastEol} days ago` : `reaches EOL on ${match.eolDate}`}.`,
+                details: {
+                  hostname: host.hostname,
+                  hostId: host.id,
+                  packageName: match.productName,
+                  currentVersion: match.installedVersion,
+                  availableVersion: match.successorVersion ?? undefined,
+                },
+              }).catch(() => {});
             }
           }
         }
