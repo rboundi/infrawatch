@@ -152,6 +152,7 @@ const EOL_WINDOW_DAYS = 90;
 
 export class EolChecker {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private running = false;
   private changeDetector: ChangeDetector;
 
   constructor(
@@ -221,6 +222,11 @@ export class EolChecker {
   }
 
   async check(): Promise<void> {
+    if (this.running) {
+      this.logger.debug("EOL check already running, skipping");
+      return;
+    }
+    this.running = true;
     try {
       // 1. Load all EOL definitions
       const defsResult = await this.pool.query<{
@@ -250,7 +256,7 @@ export class EolChecker {
         defsByProduct.set(key, arr);
       }
 
-      // 2. Query hosts with OS info, packages, and services
+      // 2. Query hosts with OS info
       const hostsResult = await this.pool.query<{
         id: string;
         hostname: string;
@@ -258,6 +264,41 @@ export class EolChecker {
         os_version: string | null;
         scan_target_id: string | null;
       }>("SELECT id, hostname, os, os_version, scan_target_id FROM hosts WHERE status = 'active'");
+
+      // 3. Bulk-fetch all packages and services for active hosts (avoids N+1)
+      const allPkgResult = await this.pool.query<{
+        host_id: string;
+        package_name: string;
+        installed_version: string;
+      }>(
+        `SELECT dp.host_id, dp.package_name, dp.installed_version
+         FROM discovered_packages dp
+         JOIN hosts h ON h.id = dp.host_id
+         WHERE h.status = 'active' AND dp.removed_at IS NULL`
+      );
+      const pkgsByHost = new Map<string, Array<{ package_name: string; installed_version: string }>>();
+      for (const row of allPkgResult.rows) {
+        const arr = pkgsByHost.get(row.host_id) ?? [];
+        arr.push({ package_name: row.package_name, installed_version: row.installed_version });
+        pkgsByHost.set(row.host_id, arr);
+      }
+
+      const allSvcResult = await this.pool.query<{
+        host_id: string;
+        service_name: string;
+        version: string | null;
+      }>(
+        `SELECT s.host_id, s.service_name, s.version
+         FROM services s
+         JOIN hosts h ON h.id = s.host_id
+         WHERE h.status = 'active'`
+      );
+      const svcsByHost = new Map<string, Array<{ service_name: string; version: string | null }>>();
+      for (const row of allSvcResult.rows) {
+        const arr = svcsByHost.get(row.host_id) ?? [];
+        arr.push({ service_name: row.service_name, version: row.version });
+        svcsByHost.set(row.host_id, arr);
+      }
 
       const now = new Date();
       const windowDate = new Date(now.getTime() + EOL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -276,30 +317,16 @@ export class EolChecker {
           matches.push(...osMatches);
         }
 
-        // Package matching
-        const pkgResult = await this.pool.query<{
-          package_name: string;
-          installed_version: string;
-        }>(
-          "SELECT package_name, installed_version FROM discovered_packages WHERE host_id = $1 AND removed_at IS NULL",
-          [host.id]
-        );
-
-        for (const pkg of pkgResult.rows) {
+        // Package matching (from pre-fetched data)
+        const hostPkgs = pkgsByHost.get(host.id) ?? [];
+        for (const pkg of hostPkgs) {
           const pkgMatches = this.matchPackage(pkg.package_name, pkg.installed_version, defsByProduct);
           matches.push(...pkgMatches);
         }
 
-        // Service matching
-        const svcResult = await this.pool.query<{
-          service_name: string;
-          version: string | null;
-        }>(
-          "SELECT service_name, version FROM services WHERE host_id = $1",
-          [host.id]
-        );
-
-        for (const svc of svcResult.rows) {
+        // Service matching (from pre-fetched data)
+        const hostSvcs = svcsByHost.get(host.id) ?? [];
+        for (const svc of hostSvcs) {
           if (!svc.version) continue;
           const svcMatches = this.matchService(svc.service_name, svc.version, defsByProduct);
           matches.push(...svcMatches);
@@ -333,7 +360,7 @@ export class EolChecker {
               await this.changeDetector.recordChangeDirect({
                 hostId: host.id,
                 hostname: host.hostname,
-                eventType: "eol_detected" as string,
+                eventType: "eol_detected",
                 category: "config",
                 summary: `EOL detected on ${host.hostname}: ${match.productName} ${match.installedVersion} (EOL ${match.eolDate})`,
                 details: {
@@ -377,6 +404,8 @@ export class EolChecker {
       }
     } catch (err) {
       this.logger.error({ err }, "EOL check failed");
+    } finally {
+      this.running = false;
     }
   }
 

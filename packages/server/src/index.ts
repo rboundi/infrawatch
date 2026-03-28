@@ -43,7 +43,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: config.corsOrigin,
-    methods: ["GET", "POST", "PATCH", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "X-API-Key"],
     maxAge: 86400,
   })

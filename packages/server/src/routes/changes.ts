@@ -2,6 +2,12 @@ import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, "\\$&");
+}
+
 export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
   const router = Router();
 
@@ -21,8 +27,8 @@ export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
         limit = "50",
       } = req.query as Record<string, string | undefined>;
 
-      const pageNum = Math.max(1, parseInt(page ?? "1", 10));
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? "50", 10)));
+      const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? "50", 10) || 50));
       const offset = (pageNum - 1) * limitNum;
 
       const conditions: string[] = [];
@@ -44,6 +50,9 @@ export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
       }
 
       if (hostId) {
+        if (!UUID_RE.test(hostId)) {
+          return res.status(400).json({ error: "Invalid hostId format" });
+        }
         conditions.push(`ce.host_id = $${paramIdx}`);
         params.push(hostId);
         paramIdx++;
@@ -51,7 +60,7 @@ export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
 
       if (search) {
         conditions.push(`(ce.hostname ILIKE $${paramIdx} OR ce.summary ILIKE $${paramIdx})`);
-        params.push(`%${search}%`);
+        params.push(`%${escapeLike(search)}%`);
         paramIdx++;
       }
 

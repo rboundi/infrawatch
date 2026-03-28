@@ -36,6 +36,7 @@ const EVENT_TYPES = [
   { value: "service_changed", label: "Service Changed" },
   { value: "os_changed", label: "OS Changed" },
   { value: "ip_changed", label: "IP Changed" },
+  { value: "eol_detected", label: "EOL Detected" },
 ];
 
 const categoryIcons: Record<string, React.ElementType> = {
@@ -56,6 +57,7 @@ const eventColors: Record<string, string> = {
   service_changed: "text-amber-600 dark:text-amber-400",
   os_changed: "text-purple-600 dark:text-purple-400",
   ip_changed: "text-purple-600 dark:text-purple-400",
+  eol_detected: "text-orange-600 dark:text-orange-400",
 };
 
 const eventBadgeColors: Record<string, string> = {
@@ -69,6 +71,7 @@ const eventBadgeColors: Record<string, string> = {
   service_changed: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   os_changed: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
   ip_changed: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  eol_detected: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
 };
 
 function formatEventType(eventType: string): string {

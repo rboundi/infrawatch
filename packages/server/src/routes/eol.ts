@@ -2,6 +2,13 @@ import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_CATEGORIES = ["os", "runtime", "database", "webserver", "appserver", "language", "framework", "container", "other"];
+
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, "\\$&");
+}
+
 export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
   const router = Router();
 
@@ -20,8 +27,8 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
         limit = "50",
       } = req.query as Record<string, string | undefined>;
 
-      const pageNum = Math.max(1, parseInt(page ?? "1", 10));
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? "50", 10)));
+      const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? "50", 10) || 50));
       const offset = (pageNum - 1) * limitNum;
 
       const conditions: string[] = [];
@@ -40,11 +47,14 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
 
       if (product) {
         conditions.push(`ea.product_name ILIKE $${paramIdx}`);
-        params.push(`%${product}%`);
+        params.push(`%${escapeLike(product)}%`);
         paramIdx++;
       }
 
       if (hostId) {
+        if (!UUID_RE.test(hostId)) {
+          return res.status(400).json({ error: "Invalid hostId format" });
+        }
         conditions.push(`ea.host_id = $${paramIdx}`);
         params.push(hostId);
         paramIdx++;
@@ -58,7 +68,7 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
 
       if (search) {
         conditions.push(`(ea.product_name ILIKE $${paramIdx} OR h.hostname ILIKE $${paramIdx})`);
-        params.push(`%${search}%`);
+        params.push(`%${escapeLike(search)}%`);
         paramIdx++;
       }
 
@@ -183,6 +193,9 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
   router.patch("/alerts/:id/acknowledge", async (req, res, next) => {
     try {
       const { id } = req.params;
+      if (!UUID_RE.test(id)) {
+        return res.status(400).json({ error: "Invalid alert ID format" });
+      }
       const { acknowledgedBy } = req.body ?? {};
 
       const result = await pool.query(
@@ -204,6 +217,9 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
   router.patch("/alerts/:id/exempt", async (req, res, next) => {
     try {
       const { id } = req.params;
+      if (!UUID_RE.test(id)) {
+        return res.status(400).json({ error: "Invalid alert ID format" });
+      }
       const { exemptionReason, acknowledgedBy } = req.body ?? {};
 
       if (!exemptionReason) {
@@ -268,6 +284,10 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
         return res.status(400).json({ error: "productName, productCategory, versionPattern, and eolDate are required" });
       }
 
+      if (!VALID_CATEGORIES.includes(productCategory)) {
+        return res.status(400).json({ error: `Invalid productCategory. Must be one of: ${VALID_CATEGORIES.join(", ")}` });
+      }
+
       const result = await pool.query(
         `INSERT INTO eol_definitions (product_name, product_category, version_pattern, eol_date, lts, successor_version, source_url, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -277,6 +297,10 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
 
       res.status(201).json(formatDefinition(result.rows[0]));
     } catch (err) {
+      // Handle unique constraint violation (duplicate product_name + version_pattern)
+      if (err instanceof Error && "code" in err && (err as { code: string }).code === "23505") {
+        return res.status(409).json({ error: "A definition for this product and version already exists" });
+      }
       next(err);
     }
   });
@@ -285,7 +309,14 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
   router.put("/definitions/:id", async (req, res, next) => {
     try {
       const { id } = req.params;
+      if (!UUID_RE.test(id)) {
+        return res.status(400).json({ error: "Invalid definition ID format" });
+      }
       const { productName, productCategory, versionPattern, eolDate, lts, successorVersion, sourceUrl, notes } = req.body;
+
+      if (productCategory && !VALID_CATEGORIES.includes(productCategory)) {
+        return res.status(400).json({ error: `Invalid productCategory. Must be one of: ${VALID_CATEGORIES.join(", ")}` });
+      }
 
       const result = await pool.query(
         `UPDATE eol_definitions SET
