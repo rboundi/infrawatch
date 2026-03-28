@@ -191,3 +191,31 @@ export function useTestConnection() {
       post<import("./types").TestConnectionResult>(`/targets/${targetId}/test`),
   });
 }
+
+// ─── Change detection hooks ───
+
+export function useChanges(params: import("./types").ChangesParams = {}) {
+  return useQuery({
+    queryKey: ["changes", params],
+    queryFn: () =>
+      get<PaginatedResponse<import("./types").ChangeEvent>>("/changes", params as Record<string, unknown>),
+  });
+}
+
+export function useChangeSummary() {
+  return useQuery({
+    queryKey: ["changes", "summary"],
+    queryFn: () => get<import("./types").ChangeSummary>("/changes/summary"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useChangeTrends() {
+  return useQuery({
+    queryKey: ["changes", "trends"],
+    queryFn: () =>
+      get<{ trends: import("./types").ChangeTrend[]; snapshots: import("./types").ChangeSnapshot[] }>(
+        "/changes/trends"
+      ),
+  });
+}

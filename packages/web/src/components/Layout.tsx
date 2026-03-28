@@ -7,11 +7,13 @@ import {
   Scan,
   Sun,
   Moon,
+  GitCommitHorizontal,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 
 const nav = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/changes", label: "Changes", icon: GitCommitHorizontal },
   { to: "/hosts", label: "Hosts", icon: Server },
   { to: "/discovery", label: "Discovery", icon: Scan },
   { to: "/alerts", label: "Alerts", icon: Bell },

@@ -187,3 +187,57 @@ export interface AlertsParams {
   page?: number;
   limit?: number;
 }
+
+// ─── Change detection types ───
+
+export interface ChangeEvent {
+  id: string;
+  hostId: string | null;
+  hostname: string;
+  eventType: string;
+  category: string;
+  summary: string;
+  details: Record<string, unknown>;
+  scanTargetId: string | null;
+  createdAt: string;
+}
+
+export interface ChangeSummary {
+  total: number;
+  last24h: number;
+  last7d: number;
+  byCategory: {
+    host: number;
+    package: number;
+    service: number;
+    config: number;
+  };
+}
+
+export interface ChangeTrend {
+  date: string;
+  count: number;
+}
+
+export interface ChangeSnapshot {
+  date: string;
+  totalHosts: number;
+  activeHosts: number;
+  totalPackages: number;
+  totalServices: number;
+  totalAlerts: number;
+  criticalAlerts: number;
+}
+
+export interface ChangesParams {
+  eventType?: string;
+  category?: string;
+  hostId?: string;
+  search?: string;
+  since?: string;
+  until?: string;
+  sortBy?: string;
+  order?: string;
+  page?: number;
+  limit?: number;
+}

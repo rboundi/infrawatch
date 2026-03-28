@@ -5,8 +5,9 @@ import {
   Radar,
   AlertCircle,
   Check,
+  GitCommitHorizontal,
 } from "lucide-react";
-import { useOverviewStats, useAlerts, useAcknowledgeAlert } from "../api/hooks";
+import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { CardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
@@ -22,6 +23,7 @@ export function OverviewPage() {
     order: "desc",
   });
   const ackMutation = useAcknowledgeAlert();
+  const recentChanges = useChanges({ limit: 8, page: 1 });
 
   const handleAck = (alert: Alert) => {
     ackMutation.mutate({ id: alert.id });
@@ -165,6 +167,45 @@ export function OverviewPage() {
         ) : (
           <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
             No critical or high alerts. All clear.
+          </div>
+        )}
+      </div>
+
+      {/* Recent changes */}
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Recent Changes
+          </h3>
+          <a
+            href="/changes"
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            View all
+          </a>
+        </div>
+
+        {recentChanges.isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={4} />
+          </div>
+        ) : recentChanges.data && recentChanges.data.data.length > 0 ? (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentChanges.data.data.map((event) => (
+              <li key={event.id} className="flex items-center gap-3 px-4 py-2.5">
+                <GitCommitHorizontal className="h-4 w-4 flex-shrink-0 text-indigo-500 dark:text-indigo-400" />
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                  {event.summary}
+                </span>
+                <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
+                  {timeAgo(event.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            No changes recorded yet.
           </div>
         )}
       </div>

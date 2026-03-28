@@ -12,12 +12,14 @@ import { createScanTargetRoutes } from "./routes/scan-targets.js";
 import { createHostRoutes } from "./routes/hosts.js";
 import { createAlertRoutes, createStatsRoutes } from "./routes/alerts.js";
 import { createDiscoveryRoutes } from "./routes/discovery.js";
+import { createChangeRoutes } from "./routes/changes.js";
 import { createErrorHandler } from "./middleware/error-handler.js";
 import { apiKeyAuth } from "./middleware/api-key.js";
 import { ScanOrchestrator } from "./services/scan-orchestrator.js";
 import { StaleHostChecker } from "./services/stale-host-checker.js";
 import { VersionChecker } from "./services/version-checker.js";
 import { EmailNotifier } from "./services/email-notifier.js";
+import { ChangeDetector } from "./services/change-detector.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -145,6 +147,7 @@ app.use("/api/v1/hosts", createHostRoutes(pool, logger));
 app.use("/api/v1/alerts", createAlertRoutes(pool, logger));
 app.use("/api/v1/stats", createStatsRoutes(pool, logger));
 app.use("/api/v1/discovery", createDiscoveryRoutes(pool, logger));
+app.use("/api/v1/changes", createChangeRoutes(pool, logger));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
@@ -154,6 +157,7 @@ const orchestrator = new ScanOrchestrator(pool, logger);
 const staleChecker = new StaleHostChecker(pool, logger);
 const versionChecker = new VersionChecker(pool, logger);
 const emailNotifier = new EmailNotifier(pool, logger);
+const changeDetector = new ChangeDetector(pool, logger);
 
 async function start() {
   try {
@@ -172,6 +176,10 @@ async function start() {
   staleChecker.start();
   versionChecker.start();
   emailNotifier.start();
+
+  // Daily snapshot scheduler — take a snapshot on startup and then every 24h
+  changeDetector.takeSnapshot();
+  const snapshotTimer = setInterval(() => changeDetector.takeSnapshot(), 24 * 60 * 60 * 1000);
 
   // ─── Graceful shutdown ───
   let shuttingDown = false;
@@ -196,6 +204,7 @@ async function start() {
     staleChecker.stop();
     versionChecker.stop();
     emailNotifier.stop();
+    clearInterval(snapshotTimer);
     logger.info("Background services stopped");
 
     // 3. Close database pool
