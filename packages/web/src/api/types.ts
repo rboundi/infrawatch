@@ -229,6 +229,50 @@ export interface ChangeSnapshot {
   criticalAlerts: number;
 }
 
+// ─── EOL types ───
+
+export interface EolAlert {
+  id: string;
+  hostId: string;
+  hostname: string;
+  eolDefinitionId: string;
+  productName: string;
+  productCategory: string;
+  installedVersion: string;
+  eolDate: string;
+  daysPastEol: number;
+  successorVersion: string | null;
+  status: "active" | "acknowledged" | "exempted" | "resolved";
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+  exemptionReason: string | null;
+  sourceUrl: string | null;
+  lts: boolean;
+  createdAt: string;
+}
+
+export interface EolAlertsSummary {
+  totalActive: number;
+  pastEol: number;
+  upcomingEol: number;
+  within6Months: number;
+  byProduct: Array<{ product: string; count: number }>;
+  byCategory: Array<{ category: string; count: number }>;
+  mostAffectedHosts: Array<{ id: string; hostname: string; eolCount: number }>;
+}
+
+export interface EolAlertsParams {
+  status?: string;
+  product?: string;
+  hostId?: string;
+  daysRange?: string;
+  search?: string;
+  sortBy?: string;
+  order?: string;
+  page?: number;
+  limit?: number;
+}
+
 export interface ChangesParams {
   eventType?: string;
   category?: string;

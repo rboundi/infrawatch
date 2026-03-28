@@ -1,0 +1,777 @@
+[
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "14.04",
+    "eolDate": "2019-04-30",
+    "lts": true,
+    "successorVersion": "16.04",
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "16.04",
+    "eolDate": "2021-04-30",
+    "lts": true,
+    "successorVersion": "18.04",
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "18.04",
+    "eolDate": "2023-05-31",
+    "lts": true,
+    "successorVersion": "20.04",
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "20.04",
+    "eolDate": "2025-04-30",
+    "lts": true,
+    "successorVersion": "22.04",
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "22.04",
+    "eolDate": "2027-04-30",
+    "lts": true,
+    "successorVersion": "24.04",
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Ubuntu",
+    "productCategory": "os",
+    "versionPattern": "24.04",
+    "eolDate": "2029-04-30",
+    "lts": true,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/ubuntu"
+  },
+  {
+    "productName": "Debian",
+    "productCategory": "os",
+    "versionPattern": "8",
+    "eolDate": "2020-06-30",
+    "lts": false,
+    "successorVersion": "9",
+    "sourceUrl": "https://endoflife.date/debian"
+  },
+  {
+    "productName": "Debian",
+    "productCategory": "os",
+    "versionPattern": "9",
+    "eolDate": "2022-06-30",
+    "lts": false,
+    "successorVersion": "10",
+    "sourceUrl": "https://endoflife.date/debian"
+  },
+  {
+    "productName": "Debian",
+    "productCategory": "os",
+    "versionPattern": "10",
+    "eolDate": "2024-06-30",
+    "lts": false,
+    "successorVersion": "11",
+    "sourceUrl": "https://endoflife.date/debian"
+  },
+  {
+    "productName": "Debian",
+    "productCategory": "os",
+    "versionPattern": "11",
+    "eolDate": "2026-06-30",
+    "lts": false,
+    "successorVersion": "12",
+    "sourceUrl": "https://endoflife.date/debian"
+  },
+  {
+    "productName": "Debian",
+    "productCategory": "os",
+    "versionPattern": "12",
+    "eolDate": "2028-06-30",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/debian"
+  },
+  {
+    "productName": "CentOS",
+    "productCategory": "os",
+    "versionPattern": "6",
+    "eolDate": "2020-11-30",
+    "lts": false,
+    "successorVersion": "7",
+    "sourceUrl": "https://endoflife.date/centos"
+  },
+  {
+    "productName": "CentOS",
+    "productCategory": "os",
+    "versionPattern": "7",
+    "eolDate": "2024-06-30",
+    "lts": false,
+    "successorVersion": "Stream 9",
+    "sourceUrl": "https://endoflife.date/centos"
+  },
+  {
+    "productName": "CentOS",
+    "productCategory": "os",
+    "versionPattern": "8",
+    "eolDate": "2021-12-31",
+    "lts": false,
+    "successorVersion": "Stream 8",
+    "sourceUrl": "https://endoflife.date/centos"
+  },
+  {
+    "productName": "CentOS Stream",
+    "productCategory": "os",
+    "versionPattern": "8",
+    "eolDate": "2024-05-31",
+    "lts": false,
+    "successorVersion": "Stream 9",
+    "sourceUrl": "https://endoflife.date/centos"
+  },
+  {
+    "productName": "CentOS Stream",
+    "productCategory": "os",
+    "versionPattern": "9",
+    "eolDate": "2027-05-31",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/centos"
+  },
+  {
+    "productName": "RHEL",
+    "productCategory": "os",
+    "versionPattern": "7",
+    "eolDate": "2024-06-30",
+    "lts": false,
+    "successorVersion": "8",
+    "sourceUrl": "https://endoflife.date/rhel"
+  },
+  {
+    "productName": "RHEL",
+    "productCategory": "os",
+    "versionPattern": "8",
+    "eolDate": "2029-05-31",
+    "lts": false,
+    "successorVersion": "9",
+    "sourceUrl": "https://endoflife.date/rhel"
+  },
+  {
+    "productName": "RHEL",
+    "productCategory": "os",
+    "versionPattern": "9",
+    "eolDate": "2032-05-31",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/rhel"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.14",
+    "eolDate": "2023-05-01",
+    "lts": false,
+    "successorVersion": "3.15",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.15",
+    "eolDate": "2023-11-01",
+    "lts": false,
+    "successorVersion": "3.16",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.16",
+    "eolDate": "2024-05-23",
+    "lts": false,
+    "successorVersion": "3.17",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.17",
+    "eolDate": "2024-11-22",
+    "lts": false,
+    "successorVersion": "3.18",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.18",
+    "eolDate": "2025-05-09",
+    "lts": false,
+    "successorVersion": "3.19",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.19",
+    "eolDate": "2025-11-01",
+    "lts": false,
+    "successorVersion": "3.20",
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Alpine",
+    "productCategory": "os",
+    "versionPattern": "3.20",
+    "eolDate": "2026-04-01",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/alpine"
+  },
+  {
+    "productName": "Windows Server",
+    "productCategory": "os",
+    "versionPattern": "2012",
+    "eolDate": "2023-10-10",
+    "lts": false,
+    "successorVersion": "2016",
+    "sourceUrl": "https://endoflife.date/windows-server"
+  },
+  {
+    "productName": "Windows Server",
+    "productCategory": "os",
+    "versionPattern": "2012R2",
+    "eolDate": "2023-10-10",
+    "lts": false,
+    "successorVersion": "2016",
+    "sourceUrl": "https://endoflife.date/windows-server"
+  },
+  {
+    "productName": "Windows Server",
+    "productCategory": "os",
+    "versionPattern": "2016",
+    "eolDate": "2027-01-12",
+    "lts": false,
+    "successorVersion": "2019",
+    "sourceUrl": "https://endoflife.date/windows-server"
+  },
+  {
+    "productName": "Windows Server",
+    "productCategory": "os",
+    "versionPattern": "2019",
+    "eolDate": "2029-01-09",
+    "lts": false,
+    "successorVersion": "2022",
+    "sourceUrl": "https://endoflife.date/windows-server"
+  },
+  {
+    "productName": "Windows Server",
+    "productCategory": "os",
+    "versionPattern": "2022",
+    "eolDate": "2031-10-14",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/windows-server"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "11",
+    "eolDate": "2023-11-09",
+    "lts": false,
+    "successorVersion": "12",
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "12",
+    "eolDate": "2024-11-14",
+    "lts": false,
+    "successorVersion": "13",
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "13",
+    "eolDate": "2025-11-13",
+    "lts": false,
+    "successorVersion": "14",
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "14",
+    "eolDate": "2026-11-12",
+    "lts": false,
+    "successorVersion": "15",
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "15",
+    "eolDate": "2027-11-11",
+    "lts": false,
+    "successorVersion": "16",
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "PostgreSQL",
+    "productCategory": "database",
+    "versionPattern": "16",
+    "eolDate": "2028-11-09",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/postgresql"
+  },
+  {
+    "productName": "MySQL",
+    "productCategory": "database",
+    "versionPattern": "5.7",
+    "eolDate": "2023-10-31",
+    "lts": false,
+    "successorVersion": "8.0",
+    "sourceUrl": "https://endoflife.date/mysql"
+  },
+  {
+    "productName": "MySQL",
+    "productCategory": "database",
+    "versionPattern": "8.0",
+    "eolDate": "2026-04-30",
+    "lts": false,
+    "successorVersion": "8.4",
+    "sourceUrl": "https://endoflife.date/mysql"
+  },
+  {
+    "productName": "MySQL",
+    "productCategory": "database",
+    "versionPattern": "8.4",
+    "eolDate": "2032-04-30",
+    "lts": true,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/mysql"
+  },
+  {
+    "productName": "MariaDB",
+    "productCategory": "database",
+    "versionPattern": "10.4",
+    "eolDate": "2024-06-18",
+    "lts": false,
+    "successorVersion": "10.5",
+    "sourceUrl": "https://endoflife.date/mariadb"
+  },
+  {
+    "productName": "MariaDB",
+    "productCategory": "database",
+    "versionPattern": "10.5",
+    "eolDate": "2025-06-24",
+    "lts": false,
+    "successorVersion": "10.6",
+    "sourceUrl": "https://endoflife.date/mariadb"
+  },
+  {
+    "productName": "MariaDB",
+    "productCategory": "database",
+    "versionPattern": "10.6",
+    "eolDate": "2026-07-06",
+    "lts": true,
+    "successorVersion": "10.11",
+    "sourceUrl": "https://endoflife.date/mariadb"
+  },
+  {
+    "productName": "MariaDB",
+    "productCategory": "database",
+    "versionPattern": "10.11",
+    "eolDate": "2028-02-16",
+    "lts": true,
+    "successorVersion": "11.4",
+    "sourceUrl": "https://endoflife.date/mariadb"
+  },
+  {
+    "productName": "MariaDB",
+    "productCategory": "database",
+    "versionPattern": "11.4",
+    "eolDate": "2029-05-29",
+    "lts": true,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/mariadb"
+  },
+  {
+    "productName": "Redis",
+    "productCategory": "database",
+    "versionPattern": "6.0",
+    "eolDate": "2024-04-01",
+    "lts": false,
+    "successorVersion": "6.2",
+    "sourceUrl": "https://endoflife.date/redis"
+  },
+  {
+    "productName": "Redis",
+    "productCategory": "database",
+    "versionPattern": "6.2",
+    "eolDate": "2025-04-01",
+    "lts": false,
+    "successorVersion": "7.0",
+    "sourceUrl": "https://endoflife.date/redis"
+  },
+  {
+    "productName": "Redis",
+    "productCategory": "database",
+    "versionPattern": "7.0",
+    "eolDate": "2026-02-01",
+    "lts": false,
+    "successorVersion": "7.2",
+    "sourceUrl": "https://endoflife.date/redis"
+  },
+  {
+    "productName": "Redis",
+    "productCategory": "database",
+    "versionPattern": "7.2",
+    "eolDate": "2027-04-01",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/redis"
+  },
+  {
+    "productName": "MongoDB",
+    "productCategory": "database",
+    "versionPattern": "4.4",
+    "eolDate": "2024-02-29",
+    "lts": false,
+    "successorVersion": "5.0",
+    "sourceUrl": "https://endoflife.date/mongodb"
+  },
+  {
+    "productName": "MongoDB",
+    "productCategory": "database",
+    "versionPattern": "5.0",
+    "eolDate": "2024-10-31",
+    "lts": false,
+    "successorVersion": "6.0",
+    "sourceUrl": "https://endoflife.date/mongodb"
+  },
+  {
+    "productName": "MongoDB",
+    "productCategory": "database",
+    "versionPattern": "6.0",
+    "eolDate": "2025-07-31",
+    "lts": false,
+    "successorVersion": "7.0",
+    "sourceUrl": "https://endoflife.date/mongodb"
+  },
+  {
+    "productName": "MongoDB",
+    "productCategory": "database",
+    "versionPattern": "7.0",
+    "eolDate": "2026-08-31",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/mongodb"
+  },
+  {
+    "productName": "Node.js",
+    "productCategory": "runtime",
+    "versionPattern": "14",
+    "eolDate": "2023-04-30",
+    "lts": true,
+    "successorVersion": "16",
+    "sourceUrl": "https://endoflife.date/nodejs"
+  },
+  {
+    "productName": "Node.js",
+    "productCategory": "runtime",
+    "versionPattern": "16",
+    "eolDate": "2023-09-11",
+    "lts": true,
+    "successorVersion": "18",
+    "sourceUrl": "https://endoflife.date/nodejs"
+  },
+  {
+    "productName": "Node.js",
+    "productCategory": "runtime",
+    "versionPattern": "18",
+    "eolDate": "2025-04-30",
+    "lts": true,
+    "successorVersion": "20",
+    "sourceUrl": "https://endoflife.date/nodejs"
+  },
+  {
+    "productName": "Node.js",
+    "productCategory": "runtime",
+    "versionPattern": "20",
+    "eolDate": "2026-04-30",
+    "lts": true,
+    "successorVersion": "22",
+    "sourceUrl": "https://endoflife.date/nodejs"
+  },
+  {
+    "productName": "Node.js",
+    "productCategory": "runtime",
+    "versionPattern": "22",
+    "eolDate": "2027-04-30",
+    "lts": true,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/nodejs"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "2.7",
+    "eolDate": "2020-01-01",
+    "lts": false,
+    "successorVersion": "3.8",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.7",
+    "eolDate": "2023-06-27",
+    "lts": false,
+    "successorVersion": "3.8",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.8",
+    "eolDate": "2024-10-31",
+    "lts": false,
+    "successorVersion": "3.9",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.9",
+    "eolDate": "2025-10-31",
+    "lts": false,
+    "successorVersion": "3.10",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.10",
+    "eolDate": "2026-10-31",
+    "lts": false,
+    "successorVersion": "3.11",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.11",
+    "eolDate": "2027-10-31",
+    "lts": false,
+    "successorVersion": "3.12",
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Python",
+    "productCategory": "runtime",
+    "versionPattern": "3.12",
+    "eolDate": "2028-10-31",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/python"
+  },
+  {
+    "productName": "Java/OpenJDK",
+    "productCategory": "runtime",
+    "versionPattern": "8",
+    "eolDate": "2026-11-30",
+    "lts": true,
+    "successorVersion": "11",
+    "sourceUrl": "https://endoflife.date/java",
+    "notes": "Adoptium support end date"
+  },
+  {
+    "productName": "Java/OpenJDK",
+    "productCategory": "runtime",
+    "versionPattern": "11",
+    "eolDate": "2027-10-31",
+    "lts": true,
+    "successorVersion": "17",
+    "sourceUrl": "https://endoflife.date/java"
+  },
+  {
+    "productName": "Java/OpenJDK",
+    "productCategory": "runtime",
+    "versionPattern": "17",
+    "eolDate": "2029-10-31",
+    "lts": true,
+    "successorVersion": "21",
+    "sourceUrl": "https://endoflife.date/java"
+  },
+  {
+    "productName": "Java/OpenJDK",
+    "productCategory": "runtime",
+    "versionPattern": "21",
+    "eolDate": "2031-10-31",
+    "lts": true,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/java"
+  },
+  {
+    "productName": ".NET",
+    "productCategory": "runtime",
+    "versionPattern": "6",
+    "eolDate": "2024-11-12",
+    "lts": true,
+    "successorVersion": "8",
+    "sourceUrl": "https://endoflife.date/dotnet"
+  },
+  {
+    "productName": ".NET",
+    "productCategory": "runtime",
+    "versionPattern": "7",
+    "eolDate": "2024-05-14",
+    "lts": false,
+    "successorVersion": "8",
+    "sourceUrl": "https://endoflife.date/dotnet"
+  },
+  {
+    "productName": ".NET",
+    "productCategory": "runtime",
+    "versionPattern": "8",
+    "eolDate": "2026-11-10",
+    "lts": true,
+    "successorVersion": "9",
+    "sourceUrl": "https://endoflife.date/dotnet"
+  },
+  {
+    "productName": ".NET",
+    "productCategory": "runtime",
+    "versionPattern": "9",
+    "eolDate": "2026-05-12",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/dotnet"
+  },
+  {
+    "productName": "PHP",
+    "productCategory": "runtime",
+    "versionPattern": "7.4",
+    "eolDate": "2022-11-28",
+    "lts": false,
+    "successorVersion": "8.0",
+    "sourceUrl": "https://endoflife.date/php"
+  },
+  {
+    "productName": "PHP",
+    "productCategory": "runtime",
+    "versionPattern": "8.0",
+    "eolDate": "2023-11-26",
+    "lts": false,
+    "successorVersion": "8.1",
+    "sourceUrl": "https://endoflife.date/php"
+  },
+  {
+    "productName": "PHP",
+    "productCategory": "runtime",
+    "versionPattern": "8.1",
+    "eolDate": "2025-12-31",
+    "lts": false,
+    "successorVersion": "8.2",
+    "sourceUrl": "https://endoflife.date/php"
+  },
+  {
+    "productName": "PHP",
+    "productCategory": "runtime",
+    "versionPattern": "8.2",
+    "eolDate": "2026-12-31",
+    "lts": false,
+    "successorVersion": "8.3",
+    "sourceUrl": "https://endoflife.date/php"
+  },
+  {
+    "productName": "PHP",
+    "productCategory": "runtime",
+    "versionPattern": "8.3",
+    "eolDate": "2027-12-31",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/php"
+  },
+  {
+    "productName": "Apache Tomcat",
+    "productCategory": "appserver",
+    "versionPattern": "8.5",
+    "eolDate": "2024-03-31",
+    "lts": false,
+    "successorVersion": "9.0",
+    "sourceUrl": "https://endoflife.date/tomcat"
+  },
+  {
+    "productName": "Apache Tomcat",
+    "productCategory": "appserver",
+    "versionPattern": "9.0",
+    "eolDate": "2028-04-30",
+    "lts": false,
+    "successorVersion": "10.0",
+    "sourceUrl": "https://endoflife.date/tomcat"
+  },
+  {
+    "productName": "Apache Tomcat",
+    "productCategory": "appserver",
+    "versionPattern": "10.0",
+    "eolDate": "2022-10-31",
+    "lts": false,
+    "successorVersion": "10.1",
+    "sourceUrl": "https://endoflife.date/tomcat"
+  },
+  {
+    "productName": "Kubernetes",
+    "productCategory": "container",
+    "versionPattern": "1.27",
+    "eolDate": "2024-06-28",
+    "lts": false,
+    "successorVersion": "1.28",
+    "sourceUrl": "https://endoflife.date/kubernetes"
+  },
+  {
+    "productName": "Kubernetes",
+    "productCategory": "container",
+    "versionPattern": "1.28",
+    "eolDate": "2024-10-28",
+    "lts": false,
+    "successorVersion": "1.29",
+    "sourceUrl": "https://endoflife.date/kubernetes"
+  },
+  {
+    "productName": "Kubernetes",
+    "productCategory": "container",
+    "versionPattern": "1.29",
+    "eolDate": "2025-02-28",
+    "lts": false,
+    "successorVersion": "1.30",
+    "sourceUrl": "https://endoflife.date/kubernetes"
+  },
+  {
+    "productName": "Kubernetes",
+    "productCategory": "container",
+    "versionPattern": "1.30",
+    "eolDate": "2025-06-28",
+    "lts": false,
+    "successorVersion": "1.31",
+    "sourceUrl": "https://endoflife.date/kubernetes"
+  },
+  {
+    "productName": "Kubernetes",
+    "productCategory": "container",
+    "versionPattern": "1.31",
+    "eolDate": "2025-10-28",
+    "lts": false,
+    "successorVersion": null,
+    "sourceUrl": "https://endoflife.date/kubernetes"
+  }
+]

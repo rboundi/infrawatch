@@ -9,6 +9,7 @@ import { HostDetailPage } from "./pages/HostDetailPage";
 import { TargetFormPage } from "./pages/TargetFormPage";
 import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { ChangesPage } from "./pages/ChangesPage";
+import { EolPage } from "./pages/EolPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="hosts/:id" element={<HostDetailPage />} />
             <Route path="discovery" element={<DiscoveryPage />} />
             <Route path="alerts" element={<AlertsPage />} />
+            <Route path="eol" element={<EolPage />} />
             <Route path="targets" element={<ScanTargetsPage />} />
             <Route path="targets/new" element={<TargetFormPage />} />
             <Route path="targets/:id/edit" element={<TargetFormPage />} />

@@ -192,6 +192,46 @@ export function useTestConnection() {
   });
 }
 
+// ─── EOL hooks ───
+
+export function useEolAlerts(params: import("./types").EolAlertsParams = {}) {
+  return useQuery({
+    queryKey: ["eol", "alerts", params],
+    queryFn: () =>
+      get<PaginatedResponse<import("./types").EolAlert>>("/eol/alerts", params as Record<string, unknown>),
+  });
+}
+
+export function useEolAlertsSummary() {
+  return useQuery({
+    queryKey: ["eol", "alerts", "summary"],
+    queryFn: () => get<import("./types").EolAlertsSummary>("/eol/alerts/summary"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAcknowledgeEolAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; acknowledgedBy?: string }) =>
+      patch<import("./types").EolAlert>(`/eol/alerts/${id}/acknowledge`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["eol"] });
+    },
+  });
+}
+
+export function useExemptEolAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; exemptionReason: string; acknowledgedBy?: string }) =>
+      patch<import("./types").EolAlert>(`/eol/alerts/${id}/exempt`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["eol"] });
+    },
+  });
+}
+
 // ─── Change detection hooks ───
 
 export function useChanges(params: import("./types").ChangesParams = {}) {

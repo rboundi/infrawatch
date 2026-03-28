@@ -6,8 +6,9 @@ import {
   AlertCircle,
   Check,
   GitCommitHorizontal,
+  Hourglass,
 } from "lucide-react";
-import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges } from "../api/hooks";
+import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges, useEolAlertsSummary } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { CardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
@@ -24,6 +25,7 @@ export function OverviewPage() {
   });
   const ackMutation = useAcknowledgeAlert();
   const recentChanges = useChanges({ limit: 8, page: 1 });
+  const eolSummary = useEolAlertsSummary();
 
   const handleAck = (alert: Alert) => {
     ackMutation.mutate({ id: alert.id });
@@ -91,6 +93,27 @@ export function OverviewPage() {
             <strong>{stats.data.staleHosts} host(s)</strong> haven't reported in
             over 24 hours and are marked as stale.
           </p>
+        </div>
+      )}
+
+      {/* EOL warnings */}
+      {eolSummary.data && eolSummary.data.totalActive > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 dark:border-orange-800 dark:bg-orange-900/20">
+          <div className="flex items-center gap-3">
+            <Hourglass className="h-5 w-5 flex-shrink-0 text-orange-600 dark:text-orange-400" />
+            <p className="text-sm text-orange-800 dark:text-orange-300">
+              <strong>{eolSummary.data.totalActive} EOL warning(s)</strong>
+              {eolSummary.data.pastEol > 0 && (
+                <> — {eolSummary.data.pastEol} past end-of-life</>
+              )}
+            </p>
+          </div>
+          <a
+            href="/eol"
+            className="text-xs font-medium text-orange-700 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
+          >
+            View EOL Tracker
+          </a>
         </div>
       )}
 

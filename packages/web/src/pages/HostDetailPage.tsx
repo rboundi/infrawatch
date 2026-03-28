@@ -10,8 +10,9 @@ import {
   Server,
   Package,
   Cog,
+  Hourglass,
 } from "lucide-react";
-import { useHost, useHostPackages, useHostHistory } from "../api/hooks";
+import { useHost, useHostPackages, useHostHistory, useEolAlerts } from "../api/hooks";
 import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { TableSkeleton, Skeleton } from "../components/Skeleton";
@@ -23,6 +24,7 @@ type Tab = "packages" | "services";
 export function HostDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: host, isLoading } = useHost(id);
+  const eolAlerts = useEolAlerts({ hostId: id, status: "active", limit: 10 });
 
   if (isLoading) return <HostDetailSkeleton />;
   if (!host) {
@@ -36,8 +38,38 @@ export function HostDetailPage() {
   return (
     <div className="space-y-6">
       <HostHeader host={host} />
+
+      {/* EOL warning banner */}
+      {eolAlerts.data && eolAlerts.data.data.length > 0 && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 dark:border-orange-800 dark:bg-orange-900/20">
+          <div className="flex items-center gap-2 mb-2">
+            <Hourglass className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <span className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+              {eolAlerts.data.data.length} End-of-Life Warning{eolAlerts.data.data.length > 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {eolAlerts.data.data.map((a) => (
+              <span
+                key={a.id}
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  a.daysPastEol > 0
+                    ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                    : "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
+                }`}
+              >
+                {a.productName} {a.installedVersion}
+                {a.daysPastEol > 0
+                  ? ` — ${a.daysPastEol}d past EOL`
+                  : ` — ${Math.abs(a.daysPastEol)}d until EOL`}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-        <TabSection host={host} />
+        <TabSection host={host} eolAlerts={eolAlerts.data?.data ?? []} />
         <ScanHistorySection hostId={host.id} />
       </div>
     </div>
@@ -126,7 +158,7 @@ function HostHeader({ host }: { host: HostDetail }) {
 
 // ─── Tab section ───
 
-function TabSection({ host }: { host: HostDetail }) {
+function TabSection({ host, eolAlerts }: { host: HostDetail; eolAlerts: import("../api/types").EolAlert[] }) {
   const [tab, setTab] = useState<Tab>("packages");
 
   return (
@@ -151,7 +183,7 @@ function TabSection({ host }: { host: HostDetail }) {
 
       {/* Tab content */}
       {tab === "packages" ? (
-        <PackagesTab hostId={host.id} alerts={host.recentAlerts} />
+        <PackagesTab hostId={host.id} alerts={host.recentAlerts} eolAlerts={eolAlerts} />
       ) : (
         <ServicesTab services={host.services} />
       )}
@@ -201,9 +233,11 @@ function TabButton({
 function PackagesTab({
   hostId,
   alerts,
+  eolAlerts,
 }: {
   hostId: string;
   alerts: HostDetail["recentAlerts"];
+  eolAlerts: import("../api/types").EolAlert[];
 }) {
   const [search, setSearch] = useState("");
   const [ecosystem, setEcosystem] = useState("all");
@@ -233,6 +267,15 @@ function PackagesTab({
     }
     return set;
   }, [alerts]);
+
+  // Build map of EOL product names (lowercased) for badge lookup
+  const eolProducts = useMemo(() => {
+    const map = new Map<string, { daysPastEol: number; productName: string }>();
+    for (const a of eolAlerts) {
+      map.set(a.productName.toLowerCase(), { daysPastEol: a.daysPastEol, productName: a.productName });
+    }
+    return map;
+  }, [eolAlerts]);
 
   // Collect ecosystems from the data
   const ecosystems = useMemo(() => {
@@ -349,17 +392,40 @@ function PackagesTab({
                         {pkg.packageManager ?? "—"}
                       </td>
                       <td className="px-4 py-2.5">
-                        {hasAlert ? (
-                          <SeverityBadge severity="high" />
-                        ) : pkg.updateAvailable ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                            update
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
-                            current
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {hasAlert ? (
+                            <SeverityBadge severity="high" />
+                          ) : pkg.updateAvailable ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                              update
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                              current
+                            </span>
+                          )}
+                          {(() => {
+                            // Check if this package name matches any EOL product
+                            const pkgLower = pkg.packageName.toLowerCase();
+                            for (const [product, eol] of eolProducts) {
+                              if (pkgLower.includes(product.toLowerCase().replace(/[/.]/g, "")) || product.toLowerCase().includes(pkgLower.replace(/[-_\d]/g, ""))) {
+                                return (
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                      eol.daysPastEol > 0
+                                        ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                                        : "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
+                                    }`}
+                                  >
+                                    <Hourglass className="h-3 w-3" />
+                                    EOL
+                                  </span>
+                                );
+                              }
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </td>
                     </tr>
                   );
