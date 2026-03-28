@@ -47,12 +47,16 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       VERSION_CHECK_INTERVAL_HOURS: ${VERSION_CHECK_INTERVAL_HOURS:-12}
       ALERT_DIGEST_HOUR: ${ALERT_DIGEST_HOUR:-8}
+      REPORT_STORAGE_PATH: /data/reports
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+    volumes:
+      - reports:/data/reports
     networks:
       - infrawatch-net
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
 
   web:
     build:
@@ -79,3 +83,4 @@ networks:
 
 volumes:
   pgdata:
+  reports:

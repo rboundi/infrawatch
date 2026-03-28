@@ -259,3 +259,73 @@ export function useChangeTrends() {
       ),
   });
 }
+
+// ─── Report hooks ───
+
+export function useReportSchedules() {
+  return useQuery({
+    queryKey: ["reports", "schedules"],
+    queryFn: () => get<import("./types").ReportSchedule[]>("/reports/schedules"),
+  });
+}
+
+export function useReportHistory(params: { page?: number; limit?: number } = {}) {
+  return useQuery({
+    queryKey: ["reports", "history", params],
+    queryFn: () =>
+      get<PaginatedResponse<import("./types").GeneratedReport>>("/reports/history", params as Record<string, unknown>),
+  });
+}
+
+export function useCreateReportSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      name: string; reportType: string; scheduleCron?: string;
+      recipients?: string[]; filters?: Record<string, unknown>; enabled?: boolean;
+    }) => post<import("./types").ReportSchedule>("/reports/schedules", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); },
+  });
+}
+
+export function useUpdateReportSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Partial<{
+      name: string; reportType: string; scheduleCron: string;
+      recipients: string[]; filters: Record<string, unknown>; enabled: boolean;
+    }>) => patch<import("./types").ReportSchedule>(`/reports/schedules/${id}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); },
+  });
+}
+
+export function useDeleteReportSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/reports/schedules/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); },
+  });
+}
+
+export function useTriggerReportGeneration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      post<{ message: string; reportId: string }>(`/reports/schedules/${id}/generate`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); },
+  });
+}
+
+export function useGenerateReportPreview() {
+  return useMutation({
+    mutationFn: async (body: { reportType: string; filters?: Record<string, unknown> }) => {
+      const res = await fetch("/api/v1/reports/generate-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to generate preview");
+      return res.text();
+    },
+  });
+}

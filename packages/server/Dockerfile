@@ -36,12 +36,18 @@ RUN npm prune --production --workspace=packages/server --workspace=packages/scan
 # ──────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-# Install nmap for network discovery + curl for healthcheck
+# Install nmap for network discovery, Chromium for PDF generation, curl for healthcheck
 RUN apk add --no-cache nmap nmap-scripts sudo curl \
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont \
     && addgroup -S infrawatch \
     && adduser -S infrawatch -G infrawatch \
     && echo "infrawatch ALL=(ALL) NOPASSWD: /usr/bin/nmap" >> /etc/sudoers.d/nmap \
-    && chmod 0440 /etc/sudoers.d/nmap
+    && chmod 0440 /etc/sudoers.d/nmap \
+    && mkdir -p /data/reports \
+    && chown infrawatch:infrawatch /data/reports
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 WORKDIR /app
 
@@ -53,6 +59,7 @@ COPY --from=builder /app/packages/scanner/dist ./packages/scanner/dist
 COPY --from=builder /app/packages/scanner/package.json ./packages/scanner/
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/server/migrations ./packages/server/migrations
+COPY --from=builder /app/packages/server/src/data ./packages/server/dist/data
 COPY --from=builder /app/packages/server/package.json ./packages/server/
 COPY --from=builder /app/package.json ./
 

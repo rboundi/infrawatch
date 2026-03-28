@@ -285,3 +285,31 @@ export interface ChangesParams {
   page?: number;
   limit?: number;
 }
+
+// ─── Report types ───
+
+export interface ReportSchedule {
+  id: string;
+  name: string;
+  reportType: string;
+  scheduleCron: string;
+  recipients: string[];
+  filters: Record<string, unknown>;
+  enabled: boolean;
+  lastGeneratedAt: string | null;
+  lastGenerationStatus: string | null;
+  createdAt: string;
+}
+
+export interface GeneratedReport {
+  id: string;
+  reportScheduleId: string | null;
+  scheduleName: string | null;
+  reportType: string;
+  title: string;
+  fileSizeBytes: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}

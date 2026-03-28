@@ -9,6 +9,7 @@ import {
   Moon,
   GitCommitHorizontal,
   Hourglass,
+  FileText,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 
@@ -19,6 +20,7 @@ const nav = [
   { to: "/discovery", label: "Discovery", icon: Scan },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
+  { to: "/reports", label: "Reports", icon: FileText },
   { to: "/targets", label: "Scan Targets", icon: Radar },
 ];
 

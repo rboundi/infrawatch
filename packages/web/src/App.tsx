@@ -10,6 +10,7 @@ import { TargetFormPage } from "./pages/TargetFormPage";
 import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { ChangesPage } from "./pages/ChangesPage";
 import { EolPage } from "./pages/EolPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="discovery" element={<DiscoveryPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="eol" element={<EolPage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="targets" element={<ScanTargetsPage />} />
             <Route path="targets/new" element={<TargetFormPage />} />
             <Route path="targets/:id/edit" element={<TargetFormPage />} />

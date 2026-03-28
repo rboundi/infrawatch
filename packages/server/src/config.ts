@@ -23,4 +23,6 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   versionCheckIntervalHours: parseInt(process.env.VERSION_CHECK_INTERVAL_HOURS ?? "12", 10),
   alertDigestHour: parseInt(process.env.ALERT_DIGEST_HOUR ?? "8", 10),
+  reportStoragePath: process.env.REPORT_STORAGE_PATH ?? "./data/reports",
+  puppeteerExePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? "",
 } as const;
