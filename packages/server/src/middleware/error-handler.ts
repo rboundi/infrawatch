@@ -2,13 +2,24 @@ import type { Request, Response, NextFunction } from "express";
 import type { Logger } from "pino";
 
 export function createErrorHandler(logger: Logger) {
-  return (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error({ err }, "Unhandled error");
+  return (err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status ?? 500;
 
-    const status = (err as unknown as Record<string, unknown>).status as number | undefined;
+    logger.error(
+      {
+        err,
+        status,
+        stack: err.stack,
+      },
+      "Unhandled error in request"
+    );
 
-    res.status(status ?? 500).json({
-      error: err.message || "Internal server error",
+    if (res.headersSent) {
+      return;
+    }
+
+    res.status(status).json({
+      error: status >= 500 ? "Internal server error" : err.message,
     });
   };
 }

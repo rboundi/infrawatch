@@ -1,8 +1,15 @@
 import axios, { AxiosError } from "axios";
 
+const apiKey = import.meta.env.VITE_API_KEY as string | undefined;
+
+const headers: Record<string, string> = { "Content-Type": "application/json" };
+if (apiKey) {
+  headers["X-API-Key"] = apiKey;
+}
+
 const api = axios.create({
   baseURL: "/api/v1",
-  headers: { "Content-Type": "application/json" },
+  headers,
 });
 
 /** Extract a readable error message from an API error */

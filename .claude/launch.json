@@ -5,13 +5,25 @@
       "name": "PostgreSQL",
       "runtimeExecutable": "docker",
       "runtimeArgs": ["compose", "up", "postgres", "-d"],
-      "port": 5433
+      "port": 5433,
+      "autoPort": false
     },
     {
       "name": "API Server",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["tsx", "watch", "packages/server/src/index.ts"],
-      "port": 3001
+      "port": 3001,
+      "env": {
+        "DB_HOST": "localhost",
+        "DB_PORT": "5433",
+        "DB_NAME": "infrawatch",
+        "DB_USER": "infrawatch",
+        "DB_PASSWORD": "infrawatch_dev",
+        "PORT": "3001",
+        "NODE_ENV": "development",
+        "MASTER_KEY": "change-me-to-a-random-secret-at-least-32",
+        "CORS_ORIGIN": "http://localhost:5173"
+      }
     },
     {
       "name": "Web Frontend",
@@ -20,7 +32,7 @@
       "port": 5173,
       "cwd": "packages/web",
       "env": {
-        "API_URL": "http://localhost:3002"
+        "API_URL": "http://localhost:3001"
       }
     },
     {
