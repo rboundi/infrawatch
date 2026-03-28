@@ -20,7 +20,7 @@ exports.up = (pgm) => {
     event_type: { type: "varchar(50)", notNull: true },
     category: { type: "varchar(30)", notNull: true },
     summary: { type: "text", notNull: true },
-    details: { type: "jsonb", default: "'{}'" },
+    details: { type: "jsonb", default: pgm.func("'{}'::jsonb") },
     scan_target_id: {
       type: "uuid",
       references: "scan_targets",
