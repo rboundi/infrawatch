@@ -154,6 +154,7 @@ export function vmToHostInventory(
     arch: "",
     packages,
     services,
+    connections: [],
     metadata: {
       vmId: summary.vm,
       vmName: summary.name,
@@ -202,6 +203,7 @@ export function esxiHostToHostInventory(
           summary.connection_state === "CONNECTED" ? "running" : "stopped",
       },
     ],
+    connections: [],
     metadata: {
       hostId: summary.host,
       connectionState: summary.connection_state,

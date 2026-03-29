@@ -154,6 +154,7 @@ export function buildHostInventory(
     arch: "",
     packages,
     services: containersToServices(containers),
+    connections: [],
     metadata: {
       dockerVersion: hostInfo.dockerVersion,
       totalContainers: hostInfo.totalContainers,

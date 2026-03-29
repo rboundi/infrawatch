@@ -393,6 +393,7 @@ export function mapNmapHostToInventory(host: NmapHost): HostInventory {
     arch: "",
     packages,
     services,
+    connections: [],
     metadata: {
       scanSource: "nmap-network-discovery",
       platform,

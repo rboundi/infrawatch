@@ -524,6 +524,7 @@ export class WinrmScanner extends BaseScanner {
           arch: computerInfo.OsArchitecture ?? "unknown",
           packages,
           services,
+          connections: [],
           metadata: {
             buildLab: computerInfo.WindowsBuildLabEx,
             scannedAt: new Date().toISOString(),

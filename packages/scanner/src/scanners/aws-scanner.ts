@@ -68,6 +68,7 @@ export function ec2InstanceToHost(
     arch: instance.Architecture ?? "x86_64",
     packages,
     services: [],
+    connections: [],
     metadata: {
       instanceId: instance.InstanceId,
       instanceType: instance.InstanceType,
@@ -111,6 +112,7 @@ export function rdsInstanceToHost(db: DBInstance): HostInventory {
         status: db.DBInstanceStatus ?? "unknown",
       },
     ],
+    connections: [],
     metadata: {
       instanceClass: db.DBInstanceClass,
       multiAz: db.MultiAZ,
@@ -161,6 +163,7 @@ export function lambdaFunctionToHost(fn: FunctionConfiguration): HostInventory {
         status: fn.State ?? "unknown",
       },
     ],
+    connections: [],
     metadata: {
       functionArn: fn.FunctionArn,
       memorySize: fn.MemorySize,
@@ -516,6 +519,7 @@ export class AwsScanner extends BaseScanner {
           status: svc.status ?? "unknown",
         },
       ],
+      connections: [],
       metadata: {
         clusterArn,
         serviceArn: svc.serviceArn,

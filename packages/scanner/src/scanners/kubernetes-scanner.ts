@@ -335,6 +335,7 @@ export class KubernetesScanner extends BaseScanner {
         arch: "",
         packages,
         services,
+        connections: [],
         metadata: {
           namespace,
           deploymentName: deployName,
