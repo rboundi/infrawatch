@@ -11,8 +11,10 @@ import {
   Package,
   Cog,
   Hourglass,
+  Wrench,
 } from "lucide-react";
-import { useHost, useHostPackages, useHostHistory, useEolAlerts } from "../api/hooks";
+import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation } from "../api/hooks";
+import { HostRemediationPanel } from "../components/RemediationPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { TableSkeleton, Skeleton } from "../components/Skeleton";
@@ -25,6 +27,8 @@ export function HostDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: host, isLoading } = useHost(id);
   const eolAlerts = useEolAlerts({ hostId: id, status: "active", limit: 10 });
+  const [showRemediation, setShowRemediation] = useState(false);
+  const remediation = useHostRemediation(showRemediation ? id ?? null : null);
 
   if (isLoading) return <HostDetailSkeleton />;
   if (!host) {
@@ -35,9 +39,30 @@ export function HostDetailPage() {
     );
   }
 
+  const hasOpenAlerts = host.openAlertCount > 0;
+
   return (
     <div className="space-y-6">
       <HostHeader host={host} />
+
+      {/* Remediation Plan button */}
+      {hasOpenAlerts && (
+        <button
+          onClick={() => setShowRemediation(true)}
+          className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+        >
+          <Wrench className="h-4 w-4" />
+          Remediation Plan ({host.openAlertCount} open alert{host.openAlertCount !== 1 ? "s" : ""})
+        </button>
+      )}
+
+      {showRemediation && (
+        <HostRemediationPanel
+          plan={remediation.data}
+          isLoading={remediation.isLoading}
+          onClose={() => setShowRemediation(false)}
+        />
+      )}
 
       {/* EOL warning banner */}
       {eolAlerts.data && eolAlerts.data.data.length > 0 && (

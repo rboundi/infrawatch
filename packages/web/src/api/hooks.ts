@@ -55,6 +55,29 @@ export function useAlertsSummary() {
   });
 }
 
+export function useAlertRemediation(alertId: string | null) {
+  return useQuery({
+    queryKey: ["alerts", "remediation", alertId],
+    queryFn: () => get<import("./types").RemediationResult>(`/alerts/${alertId}/remediation`),
+    enabled: !!alertId,
+  });
+}
+
+export function useBulkRemediation() {
+  return useMutation({
+    mutationFn: (alertIds: string[]) =>
+      post<import("./types").BulkRemediationPlan[]>("/alerts/bulk-remediation", { alertIds }),
+  });
+}
+
+export function useHostRemediation(hostId: string | null) {
+  return useQuery({
+    queryKey: ["hosts", "remediation", hostId],
+    queryFn: () => get<import("./types").HostRemediationPlan>(`/hosts/${hostId}/remediation`),
+    enabled: !!hostId,
+  });
+}
+
 export function useScanTargets() {
   return useQuery({
     queryKey: ["targets"],

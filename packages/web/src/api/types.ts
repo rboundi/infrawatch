@@ -314,6 +314,52 @@ export interface GeneratedReport {
   createdAt: string;
 }
 
+// ─── Remediation types ───
+
+export interface RemediationCommand {
+  step: number;
+  description: string;
+  command: string;
+  runAs: "root" | "sudo" | "user";
+  platform: string;
+}
+
+export interface RemediationResult {
+  commands: RemediationCommand[];
+  warnings: string[];
+  notes: string[];
+  rollbackCommands: RemediationCommand[];
+  requiresRestart: boolean;
+  affectedServices: string[];
+  estimatedDowntime: "none" | "seconds" | "minutes" | "unknown";
+}
+
+export interface HostRemediationPlan {
+  hostId: string;
+  hostname: string;
+  os: string | null;
+  preUpdate: RemediationCommand[];
+  packageUpdates: Array<{ packageName: string; commands: RemediationCommand[] }>;
+  serviceRestarts: RemediationCommand[];
+  postUpdate: RemediationCommand[];
+  reboot: RemediationCommand[];
+  rollbackCommands: RemediationCommand[];
+  warnings: string[];
+  notes: string[];
+  requiresReboot: boolean;
+  estimatedDowntime: "none" | "seconds" | "minutes" | "unknown";
+}
+
+export interface BulkRemediationPlan {
+  hostId: string;
+  hostname: string;
+  remediations: Array<{
+    alertId: string;
+    packageName: string;
+    remediation: RemediationResult;
+  }>;
+}
+
 // ─── Notification types ───
 
 export interface NotificationChannel {

@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
+import { generateHostRemediationPlan } from "../services/remediation-generator.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
   const router = Router();
@@ -294,6 +297,24 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
     } catch (err) {
       logger.error({ err }, "Failed to get host history");
       res.status(500).json({ error: "Failed to get host history" });
+    }
+  });
+
+  // ─── GET /api/v1/hosts/:id/remediation ───
+  router.get("/:id/remediation", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
+
+    try {
+      const plan = await generateHostRemediationPlan(pool, id);
+      if (!plan) {
+        res.status(404).json({ error: "Host not found or no open alerts" });
+        return;
+      }
+      res.json(plan);
+    } catch (err) {
+      logger.error({ err }, "Failed to generate host remediation plan");
+      res.status(500).json({ error: "Failed to generate host remediation plan" });
     }
   });
 

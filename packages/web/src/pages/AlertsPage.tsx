@@ -11,17 +11,22 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Wrench,
+  Copy,
 } from "lucide-react";
 import {
   useAlerts,
   useAlertsSummary,
   useAcknowledgeAlert,
   useBulkAcknowledgeAlerts,
+  useAlertRemediation,
+  useBulkRemediation,
 } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
+import { RemediationInlinePanel } from "../components/RemediationPanel";
 import { TableSkeleton, Skeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
-import type { Alert, AlertsParams } from "../api/types";
+import type { Alert, AlertsParams, BulkRemediationPlan } from "../api/types";
 
 const SEVERITIES = ["critical", "high", "medium", "low", "info"] as const;
 const DATE_RANGES = [
@@ -45,6 +50,11 @@ export function AlertsPage() {
   // Acknowledge modal
   const [ackModal, setAckModal] = useState<{ alertId: string } | null>(null);
   const [ackNotes, setAckNotes] = useState("");
+
+  // Remediation
+  const [expandedRemediationId, setExpandedRemediationId] = useState<string | null>(null);
+  const [bulkRemediationModal, setBulkRemediationModal] = useState(false);
+  const bulkRemediationMutation = useBulkRemediation();
 
   // Summary
   const summary = useAlertsSummary();
@@ -204,6 +214,17 @@ export function AlertsPage() {
             Acknowledge Selected ({selected.size})
           </button>
           <button
+            onClick={() => {
+              bulkRemediationMutation.mutate(Array.from(selected));
+              setBulkRemediationModal(true);
+            }}
+            disabled={bulkRemediationMutation.isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            Generate Remediation Plan
+          </button>
+          <button
             onClick={() => setSelected(new Set())}
             className="ml-auto text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
@@ -246,12 +267,16 @@ export function AlertsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {data.data.map((alert) => (
-                    <AlertRow
+                    <AlertRowWithRemediation
                       key={alert.id}
                       alert={alert}
                       isSelected={selected.has(alert.id)}
                       onToggleSelect={() => toggleSelect(alert.id)}
                       onAcknowledge={() => handleAck(alert)}
+                      isExpanded={expandedRemediationId === alert.id}
+                      onToggleFix={() => setExpandedRemediationId(
+                        expandedRemediationId === alert.id ? null : alert.id
+                      )}
                     />
                   ))}
                 </tbody>
@@ -310,6 +335,15 @@ export function AlertsPage() {
           notes={ackNotes}
           onNotesChange={setAckNotes}
           isPending={ackMutation.isPending}
+        />
+      )}
+
+      {/* Bulk remediation modal */}
+      {bulkRemediationModal && (
+        <BulkRemediationModal
+          data={bulkRemediationMutation.data}
+          isLoading={bulkRemediationMutation.isPending}
+          onClose={() => setBulkRemediationModal(false)}
         />
       )}
     </div>
@@ -395,92 +429,220 @@ function SeverityIcon({ severity }: { severity: string }) {
   }
 }
 
-function AlertRow({
+function AlertRowWithRemediation({
   alert,
   isSelected,
   onToggleSelect,
   onAcknowledge,
+  isExpanded,
+  onToggleFix,
 }: {
   alert: Alert;
   isSelected: boolean;
   onToggleSelect: () => void;
   onAcknowledge: () => void;
+  isExpanded: boolean;
+  onToggleFix: () => void;
 }) {
+  const remediation = useAlertRemediation(isExpanded ? alert.id : null);
+
   return (
-    <tr
-      className={`text-gray-700 transition-colors dark:text-gray-300 ${
-        isSelected ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""
-      }`}
-    >
-      <td className="px-3 py-2.5">
-        {!alert.acknowledged && (
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleSelect}
-            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-          />
-        )}
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <SeverityIcon severity={alert.severity} />
-          <SeverityBadge severity={alert.severity} />
-        </div>
-      </td>
-      <td className="px-3 py-2.5 font-medium">
-        {alert.hostname ?? "—"}
-      </td>
-      <td className="px-3 py-2.5 font-mono text-xs">
-        {alert.packageName}
-      </td>
-      <td className="px-3 py-2.5 font-mono text-xs">
-        <span className="text-gray-500 dark:text-gray-400">
-          {alert.currentVersion ?? "?"}
-        </span>
-        <span className="mx-1 text-gray-400 dark:text-gray-500">→</span>
-        <span className="text-emerald-700 dark:text-emerald-400">
-          {alert.availableVersion ?? "?"}
-        </span>
-      </td>
-      <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400">
-        {timeAgo(alert.createdAt)}
-      </td>
-      <td className="px-3 py-2.5">
-        {alert.acknowledged ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
-            <Check className="h-3 w-3" />
-            Ack'd
-          </span>
-        ) : (
-          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-            Open
-          </span>
-        )}
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="flex items-center gap-2">
+    <>
+      <tr
+        className={`text-gray-700 transition-colors dark:text-gray-300 ${
+          isSelected ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""
+        } ${isExpanded ? "bg-emerald-50/30 dark:bg-emerald-900/5" : ""}`}
+      >
+        <td className="px-3 py-2.5">
           {!alert.acknowledged && (
-            <button
-              onClick={onAcknowledge}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-              title="Acknowledge"
-            >
-              <Check className="h-3 w-3" />
-              Ack
-            </button>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
           )}
-          <Link
-            to={`/hosts/${alert.hostId}`}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
-            title="View Host"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Host
-          </Link>
+        </td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <SeverityIcon severity={alert.severity} />
+            <SeverityBadge severity={alert.severity} />
+          </div>
+        </td>
+        <td className="px-3 py-2.5 font-medium">
+          {alert.hostname ?? "—"}
+        </td>
+        <td className="px-3 py-2.5 font-mono text-xs">
+          {alert.packageName}
+        </td>
+        <td className="px-3 py-2.5 font-mono text-xs">
+          <span className="text-gray-500 dark:text-gray-400">
+            {alert.currentVersion ?? "?"}
+          </span>
+          <span className="mx-1 text-gray-400 dark:text-gray-500">→</span>
+          <span className="text-emerald-700 dark:text-emerald-400">
+            {alert.availableVersion ?? "?"}
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400">
+          {timeAgo(alert.createdAt)}
+        </td>
+        <td className="px-3 py-2.5">
+          {alert.acknowledged ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
+              <Check className="h-3 w-3" />
+              Ack'd
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              Open
+            </span>
+          )}
+        </td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleFix}
+              className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${
+                isExpanded
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+              }`}
+              title="Show remediation commands"
+            >
+              <Wrench className="h-3 w-3" />
+              Fix
+            </button>
+            {!alert.acknowledged && (
+              <button
+                onClick={onAcknowledge}
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                title="Acknowledge"
+              >
+                <Check className="h-3 w-3" />
+                Ack
+              </button>
+            )}
+            <Link
+              to={`/hosts/${alert.hostId}`}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+              title="View Host"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Host
+            </Link>
+          </div>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={8} className="p-0">
+            <RemediationInlinePanel data={remediation.data} isLoading={remediation.isLoading} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function BulkRemediationModal({
+  data,
+  isLoading,
+  onClose,
+}: {
+  data?: BulkRemediationPlan[];
+  isLoading: boolean;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copyAll = () => {
+    if (!data) return;
+    const lines: string[] = ["#!/bin/bash", "# Bulk Remediation Plan — InfraWatch", ""];
+    for (const host of data) {
+      lines.push(`# ═══ Host: ${host.hostname} ═══`);
+      for (const r of host.remediations) {
+        lines.push(`# Package: ${r.packageName}`);
+        for (const cmd of r.remediation.commands) {
+          lines.push(`# Step ${cmd.step}: ${cmd.description}`);
+          lines.push(cmd.command);
+          lines.push("");
+        }
+      }
+      lines.push("");
+    }
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Bulk Remediation Plan</h3>
+          <div className="flex items-center gap-2">
+            {data && (
+              <button
+                onClick={copyAll}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
+              >
+                {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "Copied!" : "Copy All"}
+              </button>
+            )}
+            <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </td>
-    </tr>
+
+        {isLoading && (
+          <div className="animate-pulse space-y-3">
+            <div className="h-6 w-48 rounded bg-gray-200 dark:bg-gray-700" />
+            <div className="h-12 rounded bg-gray-200 dark:bg-gray-700" />
+            <div className="h-12 rounded bg-gray-200 dark:bg-gray-700" />
+          </div>
+        )}
+
+        {data?.map((host) => (
+          <div key={host.hostId} className="mb-6">
+            <h4 className="mb-2 text-sm font-bold text-gray-800 dark:text-gray-200">{host.hostname}</h4>
+            {host.remediations.map((r) => (
+              <div key={r.alertId} className="mb-3">
+                <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-400">{r.packageName}</span>
+                {r.remediation.warnings.length > 0 && (
+                  <div className="mb-2 rounded border border-yellow-200 bg-yellow-50 px-2 py-1 dark:border-yellow-800 dark:bg-yellow-900/20">
+                    {r.remediation.warnings.map((w, i) => (
+                      <p key={i} className="text-xs text-yellow-800 dark:text-yellow-300">{w}</p>
+                    ))}
+                  </div>
+                )}
+                {r.remediation.commands.map((cmd) => (
+                  <div key={cmd.step} className="mb-1 flex items-center gap-2">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                      {cmd.step}
+                    </span>
+                    <pre className="flex-1 overflow-x-auto rounded bg-gray-900 px-2 py-1 font-mono text-xs text-green-400">
+                      {cmd.command}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
+
+        <div className="mt-4 flex justify-end">
+          <button onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

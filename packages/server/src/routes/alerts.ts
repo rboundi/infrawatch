@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
+import { generateRemediation, generateHostRemediationPlan, type AlertContext } from "../services/remediation-generator.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
   const router = Router();
@@ -194,6 +197,134 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
     } catch (err) {
       logger.error({ err }, "Failed to bulk acknowledge alerts");
       res.status(500).json({ error: "Failed to bulk acknowledge alerts" });
+    }
+  });
+
+  // ─── GET /api/v1/alerts/:id/remediation ───
+  router.get("/:id/remediation", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid alert ID" }); return; }
+
+    try {
+      const alertResult = await pool.query(
+        `SELECT a.*, h.hostname, h.os, h.os_version,
+                dp.ecosystem, dp.package_manager
+         FROM alerts a
+         LEFT JOIN hosts h ON h.id = a.host_id
+         LEFT JOIN discovered_packages dp ON dp.host_id = a.host_id AND dp.package_name = a.package_name AND dp.removed_at IS NULL
+         WHERE a.id = $1`,
+        [id]
+      );
+
+      if (alertResult.rows.length === 0) {
+        res.status(404).json({ error: "Alert not found" });
+        return;
+      }
+
+      const row = alertResult.rows[0];
+
+      // Get services for this host
+      const servicesResult = await pool.query<{ service_name: string; status: string }>(
+        "SELECT service_name, status FROM services WHERE host_id = $1",
+        [row.host_id]
+      );
+
+      const ctx: AlertContext = {
+        alertId: row.id,
+        hostId: row.host_id,
+        hostname: row.hostname ?? "unknown",
+        os: row.os,
+        osVersion: row.os_version,
+        packageName: row.package_name,
+        currentVersion: row.current_version,
+        availableVersion: row.available_version,
+        ecosystem: row.ecosystem,
+        packageManager: row.package_manager,
+        services: servicesResult.rows.map((r) => ({ serviceName: r.service_name, status: r.status })),
+      };
+
+      const remediation = generateRemediation(ctx);
+      res.json(remediation);
+    } catch (err) {
+      logger.error({ err }, "Failed to generate remediation");
+      res.status(500).json({ error: "Failed to generate remediation" });
+    }
+  });
+
+  // ─── POST /api/v1/alerts/bulk-remediation ───
+  router.post("/bulk-remediation", async (req: Request, res: Response) => {
+    const { alertIds } = req.body ?? {};
+    if (!Array.isArray(alertIds) || alertIds.length === 0) {
+      res.status(400).json({ error: "alertIds must be a non-empty array" });
+      return;
+    }
+
+    if (alertIds.length > 100) {
+      res.status(400).json({ error: "Maximum 100 alerts per bulk request" });
+      return;
+    }
+
+    try {
+      // Get all alerts with host context
+      const alertsResult = await pool.query(
+        `SELECT a.*, h.hostname, h.os, h.os_version, h.id AS h_id,
+                dp.ecosystem, dp.package_manager
+         FROM alerts a
+         LEFT JOIN hosts h ON h.id = a.host_id
+         LEFT JOIN discovered_packages dp ON dp.host_id = a.host_id AND dp.package_name = a.package_name AND dp.removed_at IS NULL
+         WHERE a.id = ANY($1)`,
+        [alertIds]
+      );
+
+      // Group by host
+      const byHost = new Map<string, typeof alertsResult.rows>();
+      for (const row of alertsResult.rows) {
+        const hostId = row.host_id;
+        if (!byHost.has(hostId)) byHost.set(hostId, []);
+        byHost.get(hostId)!.push(row);
+      }
+
+      const plans: Array<{
+        hostId: string; hostname: string;
+        remediations: Array<{ alertId: string; packageName: string; remediation: ReturnType<typeof generateRemediation> }>;
+      }> = [];
+
+      for (const [hostId, alerts] of byHost) {
+        // Get services once per host
+        const servicesResult = await pool.query<{ service_name: string; status: string }>(
+          "SELECT service_name, status FROM services WHERE host_id = $1",
+          [hostId]
+        );
+        const services = servicesResult.rows.map((r) => ({ serviceName: r.service_name, status: r.status }));
+
+        const remediations = alerts.map((row) => {
+          const ctx: AlertContext = {
+            alertId: row.id,
+            hostId: row.host_id,
+            hostname: row.hostname ?? "unknown",
+            os: row.os,
+            osVersion: row.os_version,
+            packageName: row.package_name,
+            currentVersion: row.current_version,
+            availableVersion: row.available_version,
+            ecosystem: row.ecosystem,
+            packageManager: row.package_manager,
+            services,
+          };
+          return { alertId: row.id, packageName: row.package_name, remediation: generateRemediation(ctx) };
+        });
+
+        plans.push({
+          hostId,
+          hostname: alerts[0].hostname ?? "unknown",
+          remediations,
+        });
+      }
+
+      res.json(plans);
+    } catch (err) {
+      logger.error({ err }, "Failed to generate bulk remediation");
+      res.status(500).json({ error: "Failed to generate bulk remediation" });
     }
   });
 
