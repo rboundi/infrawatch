@@ -59,27 +59,87 @@ export class NotificationService {
   async notify(event: NotificationEvent): Promise<void> {
     try {
       const channels = await this.getEnabledChannels();
+      const enqueuedChannelIds = new Set<string>();
 
       for (const channel of channels) {
         if (!this.matchesFilters(channel, event)) continue;
+        this.enqueueIfNew(channel, event, enqueuedChannelIds);
+      }
 
-        // Deduplication
-        const dedupKey = this.dedupKey(channel.id, event);
-        const lastSent = this.recentKeys.get(dedupKey);
-        if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
-          this.logger.debug(
-            { channelId: channel.id, eventType: event.eventType },
-            "Skipping duplicate notification"
-          );
-          continue;
+      // Group-based routing: look up host's groups and send to group channels
+      if (event.details.hostId) {
+        const groupChannels = await this.getGroupChannelsForHost(
+          event.details.hostId as string,
+          event.severity
+        );
+        for (const channel of groupChannels) {
+          this.enqueueIfNew(channel, event, enqueuedChannelIds);
         }
-
-        const formatted = this.formatForChannel(channel, event);
-        this.queue.push({ channel, event, formatted });
       }
     } catch (err) {
       this.logger.error({ err }, "Failed to enqueue notifications");
     }
+  }
+
+  private enqueueIfNew(
+    channel: NotificationChannel,
+    event: NotificationEvent,
+    enqueuedChannelIds: Set<string>
+  ): void {
+    if (enqueuedChannelIds.has(channel.id)) return;
+
+    const dedupKey = this.dedupKey(channel.id, event);
+    const lastSent = this.recentKeys.get(dedupKey);
+    if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
+      this.logger.debug(
+        { channelId: channel.id, eventType: event.eventType },
+        "Skipping duplicate notification"
+      );
+      return;
+    }
+
+    const formatted = this.formatForChannel(channel, event);
+    this.queue.push({ channel, event, formatted });
+    enqueuedChannelIds.add(channel.id);
+  }
+
+  private async getGroupChannelsForHost(
+    hostId: string,
+    eventSeverity: string
+  ): Promise<NotificationChannel[]> {
+    // Find groups this host belongs to that have notification channels configured
+    const result = await this.pool.query<{
+      notification_channel_ids: string[];
+      alert_severity_threshold: string;
+    }>(
+      `SELECT g.notification_channel_ids, g.alert_severity_threshold
+       FROM host_groups g
+       JOIN host_group_members m ON m.host_group_id = g.id
+       WHERE m.host_id = $1
+         AND g.notification_channel_ids IS NOT NULL
+         AND array_length(g.notification_channel_ids, 1) > 0`,
+      [hostId]
+    );
+
+    const channelIds = new Set<string>();
+    for (const row of result.rows) {
+      // Check severity threshold
+      const threshIdx = SEVERITY_ORDER.indexOf(row.alert_severity_threshold);
+      const eventIdx = SEVERITY_ORDER.indexOf(eventSeverity);
+      if (threshIdx >= 0 && eventIdx >= 0 && eventIdx < threshIdx) continue;
+
+      for (const cid of row.notification_channel_ids) {
+        channelIds.add(cid);
+      }
+    }
+
+    if (channelIds.size === 0) return [];
+
+    const channelsResult = await this.pool.query(
+      `SELECT * FROM notification_channels WHERE id = ANY($1) AND enabled = true`,
+      [Array.from(channelIds)]
+    );
+    return channelsResult.rows.map(rowToChannel);
   }
 
   /**

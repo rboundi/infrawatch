@@ -15,6 +15,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
         severity,
         acknowledged,
         hostId,
+        groupId,
         search,
         sortBy = "createdAt",
         order = "desc",
@@ -52,6 +53,11 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
       if (search) {
         conditions.push(`a.package_name ILIKE $${paramIdx++}`);
         values.push(`%${search}%`);
+      }
+
+      if (groupId) {
+        conditions.push(`EXISTS (SELECT 1 FROM host_group_members gm WHERE gm.host_id = a.host_id AND gm.host_group_id = $${paramIdx++})`);
+        values.push(groupId);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -352,6 +358,19 @@ export function createStatsRoutes(pool: pg.Pool, logger: Logger): Router {
       );
 
       const row = result.rows[0];
+
+      // Group breakdown
+      const groupsResult = await pool.query(`
+        SELECT
+          g.id, g.name, g.color, g.icon,
+          (SELECT COUNT(*) FROM host_group_members m WHERE m.host_group_id = g.id)::int AS member_count,
+          (SELECT COUNT(*) FROM alerts a
+           JOIN host_group_members m ON m.host_id = a.host_id AND m.host_group_id = g.id
+           WHERE a.acknowledged = false)::int AS open_alerts
+        FROM host_groups g
+        ORDER BY g.name ASC
+      `);
+
       res.json({
         totalHosts: parseInt(row.total_hosts, 10),
         activeHosts: parseInt(row.active_hosts, 10),
@@ -363,6 +382,14 @@ export function createStatsRoutes(pool: pg.Pool, logger: Logger): Router {
         lastScanAt: row.last_scan_at,
         networkDiscoveryHosts: parseInt(row.network_discovery_hosts, 10),
         autoPromotedTargets: parseInt(row.auto_promoted_targets, 10),
+        groups: groupsResult.rows.map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          color: g.color,
+          icon: g.icon,
+          memberCount: g.member_count,
+          openAlerts: g.open_alerts,
+        })),
       });
     } catch (err) {
       logger.error({ err }, "Failed to get stats overview");

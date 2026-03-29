@@ -12,8 +12,12 @@ import {
   Cog,
   Hourglass,
   Wrench,
+  Layers,
+  Tag,
+  Plus,
+  X,
 } from "lucide-react";
-import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation } from "../api/hooks";
+import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation, useCreateHostTag, useDeleteHostTag } from "../api/hooks";
 import { HostRemediationPanel } from "../components/RemediationPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
@@ -145,6 +149,31 @@ function HostHeader({ host }: { host: HostDetail }) {
                 </span>
               )}
             </div>
+
+            {/* Group badges */}
+            {host.groups && host.groups.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5 text-gray-400" />
+                {host.groups.map((g) => (
+                  <a
+                    key={g.id}
+                    href={`/groups/${g.id}`}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                    style={{ backgroundColor: g.color || "#6366f1" }}
+                  >
+                    {g.name}
+                    {g.assignedBy === "rule" && (
+                      <span className="opacity-70 text-[10px]">(auto)</span>
+                    )}
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {/* Tags */}
+            {host.tags && host.tags.length > 0 && (
+              <HostTagsDisplay hostId={host.id} tags={host.tags} />
+            )}
           </div>
 
           <div className="flex flex-col items-end gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -177,6 +206,78 @@ function HostHeader({ host }: { host: HostDetail }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Host Tags Display ───
+
+function HostTagsDisplay({ hostId, tags }: { hostId: string; tags: import("../api/types").HostTag[] }) {
+  const [adding, setAdding] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const createTag = useCreateHostTag();
+  const deleteTag = useDeleteHostTag();
+
+  const handleAdd = async () => {
+    if (!newKey.trim()) return;
+    await createTag.mutateAsync({ hostId, key: newKey.trim(), value: newValue || undefined });
+    setNewKey("");
+    setNewValue("");
+    setAdding(false);
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <Tag className="h-3.5 w-3.5 text-gray-400" />
+      {tags.map((t) => (
+        <span
+          key={t.id}
+          className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700"
+        >
+          <span className="font-medium text-gray-700 dark:text-gray-300">{t.key}</span>
+          {t.value && <span className="text-gray-500 dark:text-gray-400">: {t.value}</span>}
+          <button
+            onClick={() => deleteTag.mutate({ hostId, tagKey: t.key })}
+            className="ml-0.5 text-gray-400 hover:text-red-500"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      {adding ? (
+        <span className="inline-flex items-center gap-1">
+          <input
+            type="text"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            placeholder="key"
+            className="w-16 rounded border border-gray-300 px-1 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+            autoFocus
+          />
+          <input
+            type="text"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+            placeholder="value"
+            className="w-20 rounded border border-gray-300 px-1 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+          <button onClick={handleAdd} className="text-green-500 hover:text-green-600">
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setAdding(false)} className="text-gray-400 hover:text-gray-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 hover:text-gray-700 dark:bg-gray-700 dark:hover:text-gray-300"
+        >
+          <Plus className="h-3 w-3" /> Add tag
+        </button>
+      )}
     </div>
   );
 }

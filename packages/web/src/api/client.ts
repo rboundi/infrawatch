@@ -51,9 +51,9 @@ export async function patch<T>(url: string, body?: unknown): Promise<T> {
   }
 }
 
-export async function del(url: string): Promise<void> {
+export async function del(url: string, body?: unknown): Promise<void> {
   try {
-    await api.delete(url);
+    await api.delete(url, body ? { data: body } : undefined);
   } catch (err) {
     throw new Error(extractError(err));
   }

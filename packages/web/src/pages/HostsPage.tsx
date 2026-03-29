@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { useHosts } from "../api/hooks";
+import { useHosts, useGroups } from "../api/hooks";
 import { StatusBadge } from "../components/StatusBadge";
 import { TableSkeleton } from "../components/Skeleton";
 import { timeAgo, isOlderThan24h } from "../components/timeago";
@@ -14,17 +14,21 @@ export function HostsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [environment, setEnvironment] = useState<string>("all");
+  const [groupId, setGroupId] = useState<string>("all");
   const [sortBy, setSortBy] = useState("hostname");
   const [order, setOrder] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+  const { data: groupsData } = useGroups();
+  const groups = groupsData?.data ?? [];
 
   const params: HostsParams = useMemo(() => {
     const p: HostsParams = { page, limit: 25, sortBy, order };
     if (search) p.search = search;
     if (status !== "all") p.status = status;
     if (environment !== "all") p.environment = environment;
+    if (groupId !== "all") p.groupId = groupId;
     return p;
-  }, [search, status, environment, sortBy, order, page]);
+  }, [search, status, environment, groupId, sortBy, order, page]);
 
   const { data, isLoading } = useHosts(params);
 
@@ -122,6 +126,19 @@ export function HostsPage() {
             </option>
           ))}
         </select>
+
+        {groups.length > 0 && (
+          <select
+            value={groupId}
+            onChange={(e) => { setGroupId(e.target.value); setPage(1); }}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+          >
+            <option value="all">All groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Table */}

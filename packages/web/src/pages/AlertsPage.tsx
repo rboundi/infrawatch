@@ -21,6 +21,7 @@ import {
   useBulkAcknowledgeAlerts,
   useAlertRemediation,
   useBulkRemediation,
+  useGroups,
 } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { RemediationInlinePanel } from "../components/RemediationPanel";
@@ -42,7 +43,10 @@ export function AlertsPage() {
   const [selectedSeverities, setSelectedSeverities] = useState<Set<string>>(new Set());
   const [ackFilter, setAckFilter] = useState<"all" | "false" | "true">("all");
   const [dateRange, setDateRange] = useState("");
+  const [groupId, setGroupId] = useState<string>("all");
   const [page, setPage] = useState(1);
+  const { data: groupsData } = useGroups();
+  const groups = groupsData?.data ?? [];
 
   // Bulk selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -65,8 +69,9 @@ export function AlertsPage() {
     if (search) p.search = search;
     if (selectedSeverities.size > 0) p.severity = Array.from(selectedSeverities).join(",");
     if (ackFilter !== "all") p.acknowledged = ackFilter;
+    if (groupId !== "all") p.groupId = groupId;
     return p;
-  }, [search, selectedSeverities, ackFilter, dateRange, page]);
+  }, [search, selectedSeverities, ackFilter, dateRange, groupId, page]);
 
   const { data, isLoading } = useAlerts(params);
   const ackMutation = useAcknowledgeAlert();
@@ -197,6 +202,20 @@ export function AlertsPage() {
             </option>
           ))}
         </select>
+
+        {/* Group filter */}
+        {groups.length > 0 && (
+          <select
+            value={groupId}
+            onChange={(e) => { setGroupId(e.target.value); setPage(1); }}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+          >
+            <option value="all">All groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Bulk action bar */}

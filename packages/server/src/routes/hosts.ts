@@ -18,6 +18,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
         discoveryMethod,
         detectedPlatform,
         hasPort,
+        groupId,
         sortBy = "hostname",
         order = "asc",
         page = "1",
@@ -56,6 +57,10 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
       if (hasPort) {
         conditions.push(`$${paramIdx++}::integer = ANY(h.open_ports)`);
         values.push(parseInt(hasPort, 10));
+      }
+      if (groupId && UUID_RE.test(groupId)) {
+        conditions.push(`EXISTS (SELECT 1 FROM host_group_members gm WHERE gm.host_id = h.id AND gm.host_group_id = $${paramIdx++})`);
+        values.push(groupId);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -167,11 +172,39 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
         [id]
       );
 
+      // Groups
+      const groupsResult = await pool.query(
+        `SELECT g.id, g.name, g.color, g.icon, m.assigned_by
+         FROM host_group_members m
+         JOIN host_groups g ON g.id = m.host_group_id
+         WHERE m.host_id = $1
+         ORDER BY g.name ASC`,
+        [id]
+      );
+
+      // Tags
+      const tagsResult = await pool.query(
+        `SELECT id, tag_key, tag_value FROM host_tags WHERE host_id = $1 ORDER BY tag_key ASC`,
+        [id]
+      );
+
       res.json({
         ...formatHostDetail(host),
         packages: packagesResult.rows.map(formatPackage),
         services: servicesResult.rows.map(formatService),
         recentAlerts: alertsResult.rows.map(formatAlert),
+        groups: groupsResult.rows.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          color: r.color,
+          icon: r.icon,
+          assignedBy: r.assigned_by,
+        })),
+        tags: tagsResult.rows.map((r: any) => ({
+          id: r.id,
+          key: r.tag_key,
+          value: r.tag_value,
+        })),
       });
     } catch (err) {
       logger.error({ err }, "Failed to get host");
@@ -297,6 +330,67 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
     } catch (err) {
       logger.error({ err }, "Failed to get host history");
       res.status(500).json({ error: "Failed to get host history" });
+    }
+  });
+
+  // ─── GET /api/v1/hosts/:id/tags ───
+  router.get("/:id/tags", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
+    try {
+      const result = await pool.query(
+        `SELECT id, tag_key, tag_value FROM host_tags WHERE host_id = $1 ORDER BY tag_key ASC`,
+        [id]
+      );
+      res.json({ data: result.rows.map((r: any) => ({ id: r.id, key: r.tag_key, value: r.tag_value })) });
+    } catch (err) {
+      logger.error({ err }, "Failed to get tags");
+      res.status(500).json({ error: "Failed to get tags" });
+    }
+  });
+
+  // ─── POST /api/v1/hosts/:id/tags ───
+  router.post("/:id/tags", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
+    try {
+      const { key, value } = req.body;
+      if (!key || typeof key !== "string") {
+        res.status(400).json({ error: "key is required" });
+        return;
+      }
+      const result = await pool.query(
+        `INSERT INTO host_tags (host_id, tag_key, tag_value)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (host_id, tag_key) DO UPDATE SET tag_value = $3
+         RETURNING id, tag_key, tag_value`,
+        [id, key.trim(), value ?? null]
+      );
+      res.status(201).json({ id: result.rows[0].id, key: result.rows[0].tag_key, value: result.rows[0].tag_value });
+    } catch (err) {
+      logger.error({ err }, "Failed to create tag");
+      res.status(500).json({ error: "Failed to create tag" });
+    }
+  });
+
+  // ─── DELETE /api/v1/hosts/:id/tags/:tagKey ───
+  router.delete("/:id/tags/:tagKey", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const tagKey = req.params.tagKey as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
+    try {
+      const result = await pool.query(
+        `DELETE FROM host_tags WHERE host_id = $1 AND tag_key = $2 RETURNING id`,
+        [id, tagKey]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: "Tag not found" });
+        return;
+      }
+      res.status(204).end();
+    } catch (err) {
+      logger.error({ err }, "Failed to delete tag");
+      res.status(500).json({ error: "Failed to delete tag" });
     }
   });
 

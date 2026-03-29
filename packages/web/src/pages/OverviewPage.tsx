@@ -194,6 +194,50 @@ export function OverviewPage() {
         )}
       </div>
 
+      {/* Group breakdown */}
+      {stats.data?.groups && stats.data.groups.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Groups
+            </h3>
+            <a
+              href="/groups"
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Manage groups
+            </a>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-4">
+            {stats.data.groups.map((g) => (
+              <a
+                key={g.id}
+                href={`/groups/${g.id}`}
+                className="flex items-center gap-2 rounded-md border border-gray-100 p-2.5 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/30"
+              >
+                <div
+                  className="h-3 w-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: g.color || "#6366f1" }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {g.name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {g.memberCount} host{g.memberCount !== 1 ? "s" : ""}
+                    {g.openAlerts > 0 && (
+                      <span className="ml-1 text-yellow-600 dark:text-yellow-400">
+                        · {g.openAlerts} alert{g.openAlerts !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Recent changes */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">

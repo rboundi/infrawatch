@@ -414,3 +414,130 @@ export function useNotificationLogStats() {
     refetchInterval: 30_000,
   });
 }
+
+// ─── Groups ───
+
+export function useGroups() {
+  return useQuery({
+    queryKey: ["groups"],
+    queryFn: () => get<{ data: import("./types").HostGroup[] }>("/groups"),
+  });
+}
+
+export function useGroupDetail(id: string | null) {
+  return useQuery({
+    queryKey: ["groups", id],
+    queryFn: () => get<import("./types").HostGroupDetail>(`/groups/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      post<import("./types").HostGroup>("/groups", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useUpdateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
+      patch<import("./types").HostGroup>(`/groups/${id}`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useDeleteGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/groups/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useAddGroupRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, ...body }: { groupId: string; ruleType: string; ruleValue: string; priority?: number }) =>
+      post(`/groups/${groupId}/rules`, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useDeleteGroupRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, ruleId }: { groupId: string; ruleId: string }) =>
+      del(`/groups/${groupId}/rules/${ruleId}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useAddGroupMembers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, hostIds }: { groupId: string; hostIds: string[] }) =>
+      post(`/groups/${groupId}/members`, { hostIds }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useRemoveGroupMembers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, hostIds }: { groupId: string; hostIds: string[] }) =>
+      del(`/groups/${groupId}/members`, { hostIds }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function useEvaluateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) =>
+      post<{ added: number; removed: number }>(`/groups/${groupId}/evaluate`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+  });
+}
+
+export function usePreviewRule() {
+  return useMutation({
+    mutationFn: (body: { ruleType: string; ruleValue: string }) =>
+      post<{ matchCount: number }>("/groups/preview-rule", body),
+  });
+}
+
+// ─── Host Tags ───
+
+export function useHostTags(hostId: string) {
+  return useQuery({
+    queryKey: ["hosts", hostId, "tags"],
+    queryFn: () => get<{ data: import("./types").HostTag[] }>(`/hosts/${hostId}/tags`),
+    enabled: !!hostId,
+  });
+}
+
+export function useCreateHostTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ hostId, key, value }: { hostId: string; key: string; value?: string }) =>
+      post<import("./types").HostTag>(`/hosts/${hostId}/tags`, { key, value }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["hosts", vars.hostId] });
+    },
+  });
+}
+
+export function useDeleteHostTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ hostId, tagKey }: { hostId: string; tagKey: string }) =>
+      del(`/hosts/${hostId}/tags/${tagKey}`),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["hosts", vars.hostId] });
+    },
+  });
+}

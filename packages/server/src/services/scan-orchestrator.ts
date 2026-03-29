@@ -5,6 +5,7 @@ import { decrypt } from "../utils/crypto.js";
 import { config } from "../config.js";
 import { DataIngestionService } from "./data-ingestion.js";
 import type { NotificationService } from "./notifications/notification-service.js";
+import type { GroupAssignmentService } from "./group-assignment.js";
 
 interface OrchestratorOptions {
   /** How often to check for targets due for scanning (ms). Default: 5 minutes */
@@ -33,6 +34,10 @@ export class ScanOrchestrator {
     this.checkIntervalMs = options?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
     this.scanTimeoutMs = options?.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS;
     this.ingestion = new DataIngestionService(pool, logger);
+  }
+
+  setGroupAssignment(service: GroupAssignmentService): void {
+    this.ingestion.setGroupAssignment(service);
   }
 
   setNotificationService(ns: NotificationService): void {

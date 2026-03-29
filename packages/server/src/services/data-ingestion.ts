@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import type { ScanResult, HostInventory, PackageInfo, ServiceInfo } from "@infrawatch/scanner";
 import { ChangeDetector } from "./change-detector.js";
+import type { GroupAssignmentService } from "./group-assignment.js";
 
 export interface IngestionStats {
   hostsUpserted: number;
@@ -11,12 +12,17 @@ export interface IngestionStats {
 
 export class DataIngestionService {
   private changeDetector: ChangeDetector;
+  private groupAssignment?: GroupAssignmentService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger
   ) {
     this.changeDetector = new ChangeDetector(pool, logger);
+  }
+
+  setGroupAssignment(service: GroupAssignmentService): void {
+    this.groupAssignment = service;
   }
 
   /**
@@ -41,6 +47,15 @@ export class DataIngestionService {
         const svcCount = await this.upsertServices(client, hostId, host.hostname, scanTargetId, host.services);
 
         await client.query("COMMIT");
+
+        // Evaluate group membership for this host (outside transaction)
+        if (this.groupAssignment) {
+          try {
+            await this.groupAssignment.evaluateHost(hostId);
+          } catch (err) {
+            this.logger.warn({ err, hostId }, "Failed to evaluate group membership");
+          }
+        }
 
         hostsUpserted++;
         packagesFound += pkgCount;

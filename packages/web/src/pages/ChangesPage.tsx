@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Clock,
 } from "lucide-react";
-import { useChanges, useChangeSummary, useChangeTrends } from "../api/hooks";
+import { useChanges, useChangeSummary, useChangeTrends, useGroups } from "../api/hooks";
 import { CardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
 import type { ChangesParams } from "../api/types";
@@ -88,6 +88,8 @@ export function ChangesPage() {
   const changes = useChanges(params);
   const summary = useChangeSummary();
   const trends = useChangeTrends();
+  const { data: groupsData } = useGroups();
+  const groups = groupsData?.data ?? [];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +230,21 @@ export function ChangesPage() {
             </option>
           ))}
         </select>
+
+        {groups.length > 0 && (
+          <select
+            value={params.groupId ?? ""}
+            onChange={(e) =>
+              setParams((p) => ({ ...p, groupId: e.target.value || undefined, page: 1 }))
+            }
+            className="rounded-md border border-gray-300 bg-white py-1.5 px-3 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+          >
+            <option value="">All groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Change events list */}

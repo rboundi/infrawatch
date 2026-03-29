@@ -18,6 +18,14 @@ export interface OverviewStats {
   lastScanAt: string | null;
   networkDiscoveryHosts: number;
   autoPromotedTargets: number;
+  groups?: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+    icon: string | null;
+    memberCount: number;
+    openAlerts: number;
+  }>;
 }
 
 export interface HostSummary {
@@ -42,6 +50,22 @@ export interface HostDetail extends HostSummary {
   packages: PackageInfo[];
   services: ServiceInfo[];
   recentAlerts: Alert[];
+  groups?: HostGroupMembership[];
+  tags?: HostTag[];
+}
+
+export interface HostGroupMembership {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  assignedBy: "manual" | "rule";
+}
+
+export interface HostTag {
+  id: string;
+  key: string;
+  value: string | null;
 }
 
 export interface PackageInfo {
@@ -170,6 +194,7 @@ export interface DiscoveryParams {
 export interface HostsParams {
   status?: string;
   environment?: string;
+  groupId?: string;
   search?: string;
   sortBy?: string;
   order?: string;
@@ -181,6 +206,7 @@ export interface AlertsParams {
   severity?: string;
   acknowledged?: string;
   hostId?: string;
+  groupId?: string;
   search?: string;
   sortBy?: string;
   order?: string;
@@ -277,6 +303,7 @@ export interface ChangesParams {
   eventType?: string;
   category?: string;
   hostId?: string;
+  groupId?: string;
   search?: string;
   since?: string;
   until?: string;
@@ -405,4 +432,57 @@ export interface NotificationLogStats {
     sent: number;
     failed: number;
   }>;
+}
+
+// ─── Group types ───
+
+export interface HostGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  notificationChannelIds: string[];
+  alertSeverityThreshold: string;
+  createdAt: string;
+  updatedAt: string;
+  memberCount: number;
+  ruleCount: number;
+  criticalAlerts: number;
+  highAlerts: number;
+  mediumAlerts: number;
+  lowAlerts: number;
+  activeHosts: number;
+  staleHosts: number;
+}
+
+export interface HostGroupRule {
+  id: string;
+  hostGroupId: string;
+  ruleType: string;
+  ruleValue: string;
+  priority: number;
+  createdAt: string;
+}
+
+export interface HostGroupMember {
+  id: string;
+  hostname: string;
+  ip: string | null;
+  os: string | null;
+  status: string;
+  environment: string | null;
+  lastSeenAt: string;
+  assignedBy: "manual" | "rule";
+  ruleId: string | null;
+  assignedAt: string;
+  openAlertCount: number;
+}
+
+export interface HostGroupDetail extends HostGroup {
+  rules: HostGroupRule[];
+  members: HostGroupMember[];
+  channels: Array<{ id: string; name: string }>;
 }

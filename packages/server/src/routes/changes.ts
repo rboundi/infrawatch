@@ -18,6 +18,7 @@ export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
         eventType,
         category,
         hostId,
+        groupId,
         search,
         since,
         until,
@@ -73,6 +74,12 @@ export function createChangeRoutes(pool: pg.Pool, _logger: Logger): Router {
       if (until) {
         conditions.push(`ce.created_at <= $${paramIdx}`);
         params.push(until);
+        paramIdx++;
+      }
+
+      if (groupId) {
+        conditions.push(`EXISTS (SELECT 1 FROM host_group_members gm WHERE gm.host_id = ce.host_id AND gm.host_group_id = $${paramIdx})`);
+        params.push(groupId);
         paramIdx++;
       }
 
