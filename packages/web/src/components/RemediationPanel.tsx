@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Copy, Check, ChevronDown, ChevronRight, AlertTriangle, Info, Clock } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronRight, AlertTriangle, Info, Clock, Network } from "lucide-react";
+import { useImpactAnalysis } from "../api/hooks";
 import type { RemediationCommand, RemediationResult, HostRemediationPlan } from "../api/types";
 
 // ─── Single alert remediation panel ───
@@ -121,6 +122,9 @@ export function HostRemediationPanel({
         </div>
 
         <WarningBox warnings={plan.warnings} />
+
+        {/* Impact warning */}
+        <ImpactWarning hostId={plan.hostId} />
 
         {/* Pre-update */}
         {plan.preUpdate.length > 0 && (
@@ -323,4 +327,39 @@ function collectAllPlanCommands(plan: HostRemediationPlan): RemediationCommand[]
     ...plan.postUpdate,
     ...plan.reboot,
   ];
+}
+
+function ImpactWarning({ hostId }: { hostId: string }) {
+  const { data: impact } = useImpactAnalysis(hostId);
+
+  if (!impact || (impact.directDependents.length === 0 && impact.indirectDependents.length === 0)) {
+    return null;
+  }
+
+  const colorClass =
+    impact.riskLevel === "critical" ? "border-red-300 bg-red-50 text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300" :
+    impact.riskLevel === "high" ? "border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-700 dark:bg-orange-900/20 dark:text-orange-300" :
+    "border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300";
+
+  return (
+    <div className={`mb-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${colorClass}`}>
+      <Network className="mt-0.5 h-4 w-4 flex-shrink-0" />
+      <div>
+        <p className="font-medium">Dependency Impact: {impact.riskLevel.toUpperCase()}</p>
+        <p className="text-xs mt-0.5 opacity-80">
+          {impact.directDependents.length} direct and {impact.indirectDependents.length} indirect dependent(s) may be affected by changes to this host.
+        </p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {impact.directDependents.slice(0, 5).map((d) => (
+            <span key={d.hostId} className="rounded bg-white/50 px-1.5 py-0.5 text-xs font-medium dark:bg-black/20">
+              {d.hostname}
+            </span>
+          ))}
+          {impact.directDependents.length > 5 && (
+            <span className="text-xs opacity-70">+{impact.directDependents.length - 5} more</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

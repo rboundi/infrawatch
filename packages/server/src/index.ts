@@ -17,7 +17,9 @@ import { createEolRoutes } from "./routes/eol.js";
 import { createReportRoutes } from "./routes/reports.js";
 import { createNotificationRoutes } from "./routes/notifications.js";
 import { createGroupRoutes } from "./routes/groups.js";
+import { createDependencyRoutes } from "./routes/dependencies.js";
 import { GroupAssignmentService } from "./services/group-assignment.js";
+import { ImpactAnalyzer } from "./services/impact-analyzer.js";
 import { createErrorHandler } from "./middleware/error-handler.js";
 import { apiKeyAuth } from "./middleware/api-key.js";
 import { ScanOrchestrator } from "./services/scan-orchestrator.js";
@@ -159,6 +161,7 @@ const eolChecker = new EolChecker(pool, logger);
 const reportGenerator = new ReportGenerator(pool, logger);
 const notificationService = new NotificationService(pool, logger);
 const groupAssignment = new GroupAssignmentService(pool, logger);
+const impactAnalyzer = new ImpactAnalyzer(pool, logger);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
@@ -178,6 +181,7 @@ app.use("/api/v1/eol", createEolRoutes(pool, logger));
 app.use("/api/v1/reports", createReportRoutes(pool, logger, reportGenerator));
 app.use("/api/v1/notifications", createNotificationRoutes(pool, logger, notificationService));
 app.use("/api/v1/groups", createGroupRoutes(pool, logger, groupAssignment));
+app.use("/api/v1/dependencies", createDependencyRoutes(pool, logger, impactAnalyzer));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));

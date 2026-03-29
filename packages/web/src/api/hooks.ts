@@ -541,3 +541,56 @@ export function useDeleteHostTag() {
     },
   });
 }
+
+// ─── Dependencies ───
+
+export function useHostConnections(params: { hostId?: string; direction?: string; limit?: number; offset?: number } = {}) {
+  return useQuery({
+    queryKey: ["dependencies", "connections", params],
+    queryFn: () =>
+      get<{ data: import("./types").HostConnection[]; total: number }>("/dependencies/connections", params as Record<string, unknown>),
+  });
+}
+
+export function useImpactAnalysis(hostId: string | null) {
+  return useQuery({
+    queryKey: ["dependencies", "impact", hostId],
+    queryFn: () => get<import("./types").ImpactResult>(`/dependencies/impact/${hostId}`),
+    enabled: !!hostId,
+  });
+}
+
+export function useDependencyMap() {
+  return useQuery({
+    queryKey: ["dependencies", "map"],
+    queryFn: () => get<import("./types").DependencyMapData>("/dependencies/map"),
+  });
+}
+
+export function useDependencyAnnotations(hostId?: string) {
+  return useQuery({
+    queryKey: ["dependencies", "annotations", hostId],
+    queryFn: () =>
+      get<import("./types").DependencyAnnotation[]>(
+        "/dependencies/annotations",
+        hostId ? { hostId } : undefined
+      ),
+  });
+}
+
+export function useCreateAnnotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { sourceHostId: string; targetHostId: string; label: string; notes?: string; createdBy?: string }) =>
+      post<import("./types").DependencyAnnotation>("/dependencies/annotations", body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dependencies"] }); },
+  });
+}
+
+export function useDeleteAnnotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/dependencies/annotations/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dependencies"] }); },
+  });
+}

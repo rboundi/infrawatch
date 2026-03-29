@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { Logger } from "pino";
-import type { ScanResult, HostInventory, PackageInfo, ServiceInfo } from "@infrawatch/scanner";
+import type { ScanResult, HostInventory, PackageInfo, ServiceInfo, ConnectionInfo } from "@infrawatch/scanner";
 import { ChangeDetector } from "./change-detector.js";
 import type { GroupAssignmentService } from "./group-assignment.js";
 
@@ -45,6 +45,7 @@ export class DataIngestionService {
         const hostId = await this.upsertHost(client, scanTargetId, host);
         const pkgCount = await this.diffPackages(client, hostId, host.hostname, scanTargetId, host.packages);
         const svcCount = await this.upsertServices(client, hostId, host.hostname, scanTargetId, host.services);
+        await this.processConnections(client, hostId, host.connections ?? []);
 
         await client.query("COMMIT");
 
@@ -365,5 +366,52 @@ export class DataIngestionService {
     }
 
     return services.length;
+  }
+
+  // ─── Connection processing ───
+
+  private async processConnections(
+    client: pg.PoolClient,
+    sourceHostId: string,
+    connections: ConnectionInfo[]
+  ): Promise<void> {
+    if (connections.length === 0) return;
+
+    for (const conn of connections) {
+      // Try to resolve target host by IP
+      const targetResult = await client.query<{ id: string }>(
+        `SELECT id FROM hosts WHERE ip_address = $1 LIMIT 1`,
+        [conn.remoteIp]
+      );
+      const targetHostId = targetResult.rows[0]?.id ?? null;
+
+      // Try to match a service on the target host+port
+      let targetService: string | null = null;
+      if (targetHostId) {
+        const svcResult = await client.query<{ service_name: string }>(
+          `SELECT service_name FROM services WHERE host_id = $1 AND port = $2 LIMIT 1`,
+          [targetHostId, conn.remotePort]
+        );
+        targetService = svcResult.rows[0]?.service_name ?? null;
+      }
+
+      await client.query(
+        `INSERT INTO host_connections
+           (source_host_id, target_host_id, target_ip, target_port, source_process, target_service, connection_type, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'observed', NOW(), NOW())
+         ON CONFLICT (source_host_id, target_ip, target_port, source_process)
+         DO UPDATE SET
+           target_host_id = COALESCE(EXCLUDED.target_host_id, host_connections.target_host_id),
+           target_service = COALESCE(EXCLUDED.target_service, host_connections.target_service),
+           last_seen_at = NOW()`,
+        [sourceHostId, targetHostId, conn.remoteIp, conn.remotePort, conn.processName, targetService]
+      );
+    }
+
+    // Clean up stale connections not seen in 7 days
+    await client.query(
+      `DELETE FROM host_connections WHERE source_host_id = $1 AND last_seen_at < NOW() - INTERVAL '7 days'`,
+      [sourceHostId]
+    );
   }
 }

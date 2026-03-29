@@ -7,6 +7,7 @@ import type {
   HostInventory,
   PackageInfo,
   ServiceInfo,
+  ConnectionInfo,
 } from "../types.js";
 import {
   parseOsRelease,
@@ -32,6 +33,7 @@ import {
   parseDockerPs,
   dockerContainersToPackages,
   dockerContainersToServices,
+  parseSsOutput,
 } from "./parsers.js";
 
 const COMMAND_TIMEOUT_MS = 30_000;
@@ -43,6 +45,7 @@ export interface SshConnectionConfig {
   privateKey?: string;
   password?: string;
   passphrase?: string;
+  collectConnections?: boolean;
 }
 
 interface CommandResult {
@@ -178,7 +181,8 @@ export class SshLinuxScanner extends BaseScanner {
     const conn = await this.connect(connConfig);
 
     try {
-      const host = await this.discoverHost(conn);
+      const collectConnections = connConfig.collectConnections !== false;
+      const host = await this.discoverHost(conn, collectConnections);
       return { hosts: [host] };
     } finally {
       conn.end();
@@ -210,7 +214,7 @@ export class SshLinuxScanner extends BaseScanner {
     });
   }
 
-  private async discoverHost(conn: Client): Promise<HostInventory> {
+  private async discoverHost(conn: Client, collectConnections = true): Promise<HostInventory> {
     // ─── OS Discovery ───
     const osReleaseRaw = await tryCommand(
       conn,
@@ -354,6 +358,20 @@ export class SshLinuxScanner extends BaseScanner {
       services.push(...dockerContainersToServices(containers));
     }
 
+    // ─── Connection Discovery ───
+    let connections: ConnectionInfo[] = [];
+
+    if (collectConnections) {
+      const ssOut = await tryCommand(
+        conn,
+        "ss -tnpH 2>/dev/null || netstat -tnp 2>/dev/null | grep ESTABLISHED",
+        "connections"
+      );
+      if (ssOut) {
+        connections = parseSsOutput(ssOut);
+      }
+    }
+
     return {
       hostname,
       ip,
@@ -362,6 +380,7 @@ export class SshLinuxScanner extends BaseScanner {
       arch,
       packages,
       services,
+      connections,
       metadata: {
         distroId: osInfo.id,
         scannedAt: new Date().toISOString(),

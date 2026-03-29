@@ -10,7 +10,16 @@ export interface HostInventory {
   arch: string;
   packages: PackageInfo[];
   services: ServiceInfo[];
+  connections: ConnectionInfo[];
   metadata: Record<string, unknown>;
+}
+
+export interface ConnectionInfo {
+  localPort: number;
+  remoteIp: string;
+  remotePort: number;
+  processName: string | null;
+  protocol: "tcp";
 }
 
 export interface PackageInfo {

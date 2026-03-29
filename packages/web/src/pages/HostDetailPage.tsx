@@ -16,8 +16,10 @@ import {
   Tag,
   Plus,
   X,
+  Network,
+  AlertTriangle,
 } from "lucide-react";
-import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation, useCreateHostTag, useDeleteHostTag } from "../api/hooks";
+import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation, useCreateHostTag, useDeleteHostTag, useHostConnections, useImpactAnalysis } from "../api/hooks";
 import { HostRemediationPanel } from "../components/RemediationPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
@@ -25,7 +27,7 @@ import { TableSkeleton, Skeleton } from "../components/Skeleton";
 import { timeAgo, isOlderThan24h } from "../components/timeago";
 import type { HostDetail, ServiceInfo, ScanLog } from "../api/types";
 
-type Tab = "packages" | "services";
+type Tab = "packages" | "services" | "dependencies";
 
 export function HostDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -286,6 +288,8 @@ function HostTagsDisplay({ hostId, tags }: { hostId: string; tags: import("../ap
 
 function TabSection({ host, eolAlerts }: { host: HostDetail; eolAlerts: import("../api/types").EolAlert[] }) {
   const [tab, setTab] = useState<Tab>("packages");
+  const connections = useHostConnections({ hostId: host.id });
+  const connCount = connections.data?.total ?? 0;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -305,13 +309,22 @@ function TabSection({ host, eolAlerts }: { host: HostDetail; eolAlerts: import("
           label="Services"
           count={host.services.length}
         />
+        <TabButton
+          active={tab === "dependencies"}
+          onClick={() => setTab("dependencies")}
+          icon={Network}
+          label="Dependencies"
+          count={connCount}
+        />
       </div>
 
       {/* Tab content */}
       {tab === "packages" ? (
         <PackagesTab hostId={host.id} alerts={host.recentAlerts} eolAlerts={eolAlerts} />
-      ) : (
+      ) : tab === "services" ? (
         <ServicesTab services={host.services} />
+      ) : (
+        <DependenciesTab hostId={host.id} />
       )}
     </div>
   );
@@ -641,6 +654,127 @@ function ServicesTab({ services }: { services: ServiceInfo[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ─── Dependencies tab ───
+
+function DependenciesTab({ hostId }: { hostId: string }) {
+  const outgoing = useHostConnections({ hostId, direction: "outgoing", limit: 50 });
+  const incoming = useHostConnections({ hostId, direction: "incoming", limit: 50 });
+  const impact = useImpactAnalysis(hostId);
+
+  return (
+    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+      {/* Impact summary */}
+      {impact.data && (
+        <div className="px-4 py-3">
+          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+            impact.data.riskLevel === "critical" ? "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300" :
+            impact.data.riskLevel === "high" ? "bg-orange-50 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300" :
+            impact.data.riskLevel === "medium" ? "bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300" :
+            "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+          }`}>
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span>{impact.data.summary}</span>
+            <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-bold uppercase ${
+              impact.data.riskLevel === "critical" ? "bg-red-200 text-red-900 dark:bg-red-800 dark:text-red-100" :
+              impact.data.riskLevel === "high" ? "bg-orange-200 text-orange-900 dark:bg-orange-800 dark:text-orange-100" :
+              impact.data.riskLevel === "medium" ? "bg-yellow-200 text-yellow-900 dark:bg-yellow-800 dark:text-yellow-100" :
+              "bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100"
+            }`}>
+              {impact.data.riskLevel}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Depends On (outgoing) */}
+      <div className="px-4 py-3">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+          Depends On ({outgoing.data?.data.length ?? 0})
+        </h4>
+        {outgoing.isLoading ? (
+          <TableSkeleton rows={3} />
+        ) : outgoing.data && outgoing.data.data.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <th className="pb-1.5 pr-3">Target Host</th>
+                  <th className="pb-1.5 pr-3">IP:Port</th>
+                  <th className="pb-1.5 pr-3">Service</th>
+                  <th className="pb-1.5 pr-3">Process</th>
+                  <th className="pb-1.5">Last Seen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {outgoing.data.data.map((c) => (
+                  <tr key={c.id} className="text-gray-700 dark:text-gray-300">
+                    <td className="py-1.5 pr-3 font-medium">
+                      {c.target_host_id ? (
+                        <Link to={`/hosts/${c.target_host_id}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                          {c.target_hostname ?? c.target_ip}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-500">{c.target_ip}</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{c.target_ip}:{c.target_port}</td>
+                    <td className="py-1.5 pr-3 text-xs">{c.target_service ?? "—"}</td>
+                    <td className="py-1.5 pr-3 text-xs">{c.source_process ?? "—"}</td>
+                    <td className="py-1.5 text-xs text-gray-500">{timeAgo(c.last_seen_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">No outgoing connections observed.</p>
+        )}
+      </div>
+
+      {/* Depended On By (incoming) */}
+      <div className="px-4 py-3">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+          Depended On By ({incoming.data?.data.length ?? 0})
+        </h4>
+        {incoming.isLoading ? (
+          <TableSkeleton rows={3} />
+        ) : incoming.data && incoming.data.data.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <th className="pb-1.5 pr-3">Source Host</th>
+                  <th className="pb-1.5 pr-3">Port</th>
+                  <th className="pb-1.5 pr-3">Service</th>
+                  <th className="pb-1.5 pr-3">Process</th>
+                  <th className="pb-1.5">Last Seen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {incoming.data.data.map((c) => (
+                  <tr key={c.id} className="text-gray-700 dark:text-gray-300">
+                    <td className="py-1.5 pr-3 font-medium">
+                      <Link to={`/hosts/${c.source_host_id}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                        {c.source_hostname}
+                      </Link>
+                    </td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{c.target_port}</td>
+                    <td className="py-1.5 pr-3 text-xs">{c.target_service ?? "—"}</td>
+                    <td className="py-1.5 pr-3 text-xs">{c.source_process ?? "—"}</td>
+                    <td className="py-1.5 text-xs text-gray-500">{timeAgo(c.last_seen_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">No hosts depend on this host.</p>
+        )}
+      </div>
     </div>
   );
 }

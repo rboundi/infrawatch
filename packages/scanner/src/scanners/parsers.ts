@@ -1,4 +1,4 @@
-import type { PackageInfo, ServiceInfo } from "../types.js";
+import type { PackageInfo, ServiceInfo, ConnectionInfo } from "../types.js";
 
 // ─── OS Discovery Parsers ───
 
@@ -322,4 +322,104 @@ export function dockerContainersToServices(
       status: c.status.toLowerCase().includes("up") ? "running" : "stopped",
     };
   });
+}
+
+// ─── Connection Parsers ───
+
+const EPHEMERAL_PORT_MIN = 32768;
+
+/**
+ * Parse output from `ss -tnpH` or `netstat -tnp`.
+ * Extracts ESTABLISHED TCP connections, filtering loopback and ephemeral remote ports.
+ */
+export function parseSsOutput(output: string): ConnectionInfo[] {
+  const connections: ConnectionInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const line of output.trim().split("\n")) {
+    if (!line.trim()) continue;
+
+    // ss -tnpH format: State Recv-Q Send-Q Local:Port Peer:Port Process
+    // netstat -tnp format: Proto Recv-Q Send-Q Local:Port Foreign:Port State PID/Program
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 5) continue;
+
+    // Determine if this is ss or netstat output
+    let localAddr: string | undefined;
+    let remoteAddr: string | undefined;
+    let processStr: string | undefined;
+
+    if (parts[0] === "ESTAB" || parts[0] === "ESTABLISHED") {
+      // ss format: ESTAB 0 0 local:port peer:port users:((...))
+      localAddr = parts[3];
+      remoteAddr = parts[4];
+      processStr = parts.length > 5 ? parts.slice(5).join(" ") : undefined;
+    } else if (parts[0] === "tcp" || parts[0] === "tcp6") {
+      // netstat format: tcp 0 0 local:port foreign:port ESTABLISHED pid/name
+      if (!line.includes("ESTABLISHED")) continue;
+      localAddr = parts[3];
+      remoteAddr = parts[4];
+      processStr = parts.length > 6 ? parts[6] : undefined;
+    } else {
+      continue;
+    }
+
+    if (!localAddr || !remoteAddr) continue;
+
+    const local = parseAddress(localAddr);
+    const remote = parseAddress(remoteAddr);
+    if (!local || !remote) continue;
+
+    // Filter loopback
+    if (isLoopback(remote.ip)) continue;
+
+    // Filter ephemeral remote ports (likely return traffic)
+    if (remote.port >= EPHEMERAL_PORT_MIN) continue;
+
+    // Extract process name
+    let processName: string | null = null;
+    if (processStr) {
+      // ss: users:(("nginx",pid=1234,fd=5))
+      const ssMatch = processStr.match(/\("([^"]+)"/);
+      if (ssMatch) {
+        processName = ssMatch[1];
+      } else {
+        // netstat: 1234/nginx
+        const netstatMatch = processStr.match(/\d+\/(.+)/);
+        if (netstatMatch) {
+          processName = netstatMatch[1];
+        }
+      }
+    }
+
+    const key = `${local.port}:${remote.ip}:${remote.port}:${processName}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    connections.push({
+      localPort: local.port,
+      remoteIp: remote.ip,
+      remotePort: remote.port,
+      processName,
+      protocol: "tcp",
+    });
+  }
+
+  return connections;
+}
+
+function parseAddress(addr: string): { ip: string; port: number } | undefined {
+  // Handle IPv6 [::1]:port or IPv4 1.2.3.4:port or *:port
+  const lastColon = addr.lastIndexOf(":");
+  if (lastColon === -1) return undefined;
+
+  const ip = addr.substring(0, lastColon);
+  const port = parseInt(addr.substring(lastColon + 1), 10);
+  if (isNaN(port)) return undefined;
+
+  return { ip: ip.replace(/^\[|\]$/g, ""), port };
+}
+
+function isLoopback(ip: string): boolean {
+  return ip === "127.0.0.1" || ip === "::1" || ip.startsWith("127.");
 }

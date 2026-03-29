@@ -14,6 +14,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { DependenciesPage } from "./pages/DependenciesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="hosts/:id" element={<HostDetailPage />} />
             <Route path="groups" element={<GroupsPage />} />
             <Route path="groups/:id" element={<GroupDetailPage />} />
+            <Route path="dependencies" element={<DependenciesPage />} />
             <Route path="discovery" element={<DiscoveryPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="eol" element={<EolPage />} />

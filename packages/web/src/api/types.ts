@@ -486,3 +486,72 @@ export interface HostGroupDetail extends HostGroup {
   members: HostGroupMember[];
   channels: Array<{ id: string; name: string }>;
 }
+
+// ─── Dependency types ───
+
+export interface HostConnection {
+  id: string;
+  source_host_id: string;
+  source_hostname: string;
+  source_ip: string | null;
+  target_host_id: string | null;
+  target_hostname: string | null;
+  target_ip: string;
+  target_port: number;
+  source_process: string | null;
+  target_service: string | null;
+  connection_type: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface DependencyNode {
+  hostId: string;
+  hostname: string;
+  ip: string | null;
+  port: number;
+  service: string | null;
+  process: string | null;
+  connectionType: string;
+}
+
+export interface ImpactResult {
+  hostId: string;
+  hostname: string;
+  directDependents: DependencyNode[];
+  indirectDependents: DependencyNode[];
+  directDependencies: DependencyNode[];
+  riskLevel: "low" | "medium" | "high" | "critical";
+  summary: string;
+}
+
+export interface DependencyMapData {
+  nodes: Array<{
+    id: string;
+    hostname: string;
+    ip: string | null;
+    os: string | null;
+    status: string;
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    targetIp: string;
+    targetPort: number;
+    sourceProcess: string | null;
+    targetService: string | null;
+    connectionType: string;
+  }>;
+}
+
+export interface DependencyAnnotation {
+  id: string;
+  source_host_id: string;
+  source_hostname: string;
+  target_host_id: string;
+  target_hostname: string;
+  label: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
