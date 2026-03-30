@@ -20,10 +20,16 @@ export interface NetworkDiscoveryConfig {
   scanProfile?: "stealthy" | "polite" | "normal" | "aggressive";
   portProfile?: "common" | "infrastructure" | "full" | "custom";
   customPorts?: string;
+  // UI sends these keys (osDetection / versionDetection / scriptScanning)
+  osDetection?: boolean;
+  versionDetection?: boolean;
+  scriptScanning?: boolean;
+  // Legacy keys (enableOsDetection / enableVersionDetection / enableScriptScan)
   enableOsDetection?: boolean;
   enableVersionDetection?: boolean;
   enableScriptScan?: boolean;
   maxScanMinutes?: number;
+  scanTimeout?: number;
   autoPromote?: "none" | "suggest";
   sshTemplateTargetId?: string;
   winrmTemplateTargetId?: string;
@@ -72,7 +78,15 @@ export interface NmapPort {
 // ─── Pure functions ───
 
 export function buildNmapArgs(config: NetworkDiscoveryConfig, useSudo: boolean): string[] {
+  // Resolve UI keys vs legacy keys (UI sends osDetection, scanner had enableOsDetection)
+  const wantOsDetection = config.osDetection ?? config.enableOsDetection ?? true;
+  const wantVersionDetection = config.versionDetection ?? config.enableVersionDetection ?? true;
+  const wantScriptScan = config.scriptScanning ?? config.enableScriptScan ?? false;
+
   const args: string[] = [];
+
+  // Verbose output for progress reporting
+  args.push("-v");
 
   if (useSudo) {
     // TCP SYN scan (requires root)
@@ -87,17 +101,18 @@ export function buildNmapArgs(config: NetworkDiscoveryConfig, useSudo: boolean):
   args.push(TIMING_MAP[profile] ?? "-T2");
 
   // OS detection (requires root)
-  if (config.enableOsDetection !== false && useSudo) {
+  if (wantOsDetection && useSudo) {
     args.push("-O", "--osscan-guess");
   }
 
-  // Version detection
-  if (config.enableVersionDetection !== false) {
-    args.push("-sV", "--version-intensity", "5");
+  // Version detection — use lighter intensity (2) for polite/stealthy, normal (5) for aggressive
+  if (wantVersionDetection) {
+    const intensity = profile === "aggressive" ? "5" : profile === "normal" ? "3" : "2";
+    args.push("-sV", "--version-intensity", intensity);
   }
 
   // Script scanning
-  if (config.enableScriptScan) {
+  if (wantScriptScan) {
     args.push("--script", SCRIPT_SET);
   }
 
@@ -133,7 +148,7 @@ export function buildNmapArgs(config: NetworkDiscoveryConfig, useSudo: boolean):
   }
 
   // Progress reporting
-  args.push("--stats-every", "15s");
+  args.push("--stats-every", "10s");
 
   // Targets
   args.push(...config.subnets);
@@ -496,12 +511,45 @@ export function parseNmapProgress(line: string): string | null {
     return `${parseFloat(pctMatch[1]).toFixed(0)}% complete — ${pctMatch[2]} remaining`;
   }
 
-  // Discovered host: "Discovered open port 22/tcp on 192.168.1.1"
+  // Discovered open port: "Discovered open port 22/tcp on 192.168.1.1"
   const portMatch = trimmed.match(
     /^Discovered open port (\d+\/\w+) on ([\d.]+)/
   );
   if (portMatch) {
     return `Found open port ${portMatch[1]} on ${portMatch[2]}`;
+  }
+
+  // Scan phase initiation: "Initiating Connect Scan at 21:58"
+  const initiatingMatch = trimmed.match(
+    /^Initiating\s+(.+?)\s+at\s+/
+  );
+  if (initiatingMatch) {
+    return `Starting ${initiatingMatch[1]}...`;
+  }
+
+  // Scan phase completion: "Completed Ping Scan at 21:58, 13.77s elapsed (256 total hosts)"
+  const completedPhaseMatch = trimmed.match(
+    /^Completed\s+(.+?)\s+at\s+[\d:]+,\s+([\d.]+s)\s+elapsed(?:\s+\((.+?)\))?/
+  );
+  if (completedPhaseMatch) {
+    const detail = completedPhaseMatch[3] ? ` (${completedPhaseMatch[3]})` : "";
+    return `Completed ${completedPhaseMatch[1]} in ${completedPhaseMatch[2]}${detail}`;
+  }
+
+  // Scanning hosts line: "Scanning 9 hosts [1000 ports/host]"
+  const scanningMatch = trimmed.match(
+    /^Scanning\s+(\d+)\s+hosts?\s+\[(.+?)\]/
+  );
+  if (scanningMatch) {
+    return `Scanning ${scanningMatch[1]} host(s) [${scanningMatch[2]}]`;
+  }
+
+  // DNS resolution: "Initiating Parallel DNS resolution of 9 hosts."
+  const dnsMatch = trimmed.match(
+    /Parallel DNS resolution of (\d+) hosts/
+  );
+  if (dnsMatch) {
+    return `Resolving DNS for ${dnsMatch[1]} host(s)...`;
   }
 
   // Completed host: "Completed ... Scan against 192.168.1.1"
@@ -540,7 +588,7 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     // Add XML output flag
     const fullArgs = [...nmapArgs, "-oX", xmlOutputPath];
 
-    const maxMinutes = discoveryConfig.maxScanMinutes ?? 30;
+    const maxMinutes = discoveryConfig.scanTimeout ?? discoveryConfig.maxScanMinutes ?? 30;
 
     try {
       // Run nmap
@@ -608,19 +656,31 @@ export class NetworkDiscoveryScanner extends BaseScanner {
 
       let stderr = "";
       let stderrBuffer = "";
+      let stdoutBuffer = "";
+
+      const processNmapOutput = (text: string, buffer: string): string => {
+        buffer += text;
+        const lines = buffer.split("\n");
+        const remainder = lines.pop() ?? "";
+        for (const line of lines) {
+          const progressMsg = parseNmapProgress(line);
+          if (progressMsg) onProgress!(progressMsg);
+        }
+        return remainder;
+      };
+
       proc.stderr?.on("data", (chunk: Buffer) => {
         const text = chunk.toString();
         stderr += text;
-
-        // Parse nmap progress from stderr and forward to callback
         if (onProgress) {
-          stderrBuffer += text;
-          const lines = stderrBuffer.split("\n");
-          stderrBuffer = lines.pop() ?? ""; // keep incomplete last line in buffer
-          for (const line of lines) {
-            const progressMsg = parseNmapProgress(line);
-            if (progressMsg) onProgress(progressMsg);
-          }
+          stderrBuffer = processNmapOutput(text, stderrBuffer);
+        }
+      });
+
+      // nmap -v outputs progress (scan phases, discovered ports) to stdout
+      proc.stdout?.on("data", (chunk: Buffer) => {
+        if (onProgress) {
+          stdoutBuffer = processNmapOutput(chunk.toString(), stdoutBuffer);
         }
       });
 
