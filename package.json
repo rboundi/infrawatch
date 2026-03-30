@@ -6,6 +6,17 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build"
+    "dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:api": "vitest run --include '**/*.api.test.ts'",
+    "test:unit": "vitest run --include '**/*.unit.test.ts'"
+  },
+  "devDependencies": {
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.2"
   }
 }

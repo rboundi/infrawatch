@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: infrawatch_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
     ports:
       - "5433:5432"
     healthcheck:
