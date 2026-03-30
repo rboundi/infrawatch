@@ -13,6 +13,16 @@ import type { ScanLogger } from "../services/scan-logger.js";
 // Track running scans so they can be cancelled
 const runningScans = new Map<string, AbortController>();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateIdParam(req: Request, res: Response): boolean {
+  if (!UUID_RE.test(req.params.id as string)) {
+    res.status(400).json({ error: "Invalid target ID format" });
+    return false;
+  }
+  return true;
+}
+
 export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger, scanLogger?: ScanLogger): Router {
   const router = Router();
 
@@ -73,6 +83,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
 
   // ─── GET /api/v1/targets/:id ───
   router.get("/:id", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     try {
       const result = await pool.query(
@@ -118,6 +129,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
 
   // ─── PATCH /api/v1/targets/:id ───
   router.patch("/:id", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     const { name, type, connectionConfig, scanIntervalHours, enabled } = req.body;
 
@@ -204,6 +216,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
   // Hard delete: removes the target and cascades to scan_logs.
   // Hosts are preserved (FK ON DELETE SET NULL) so historical data isn't lost.
   router.delete("/:id", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     try {
       const result = await pool.query(
@@ -227,6 +240,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
 
   // ─── POST /api/v1/targets/:id/test ───
   router.post("/:id/test", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     try {
       const target = await getTargetWithConfig(pool, id);
@@ -286,6 +300,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
 
   // ─── POST /api/v1/targets/:id/scan ───
   router.post("/:id/scan", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     try {
       const target = await getTargetWithConfig(pool, id);
@@ -330,6 +345,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
 
   // ─── POST /api/v1/targets/:id/cancel ───
   router.post("/:id/cancel", async (req: Request, res: Response) => {
+    if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
     const controller = runningScans.get(id);
 

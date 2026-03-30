@@ -22,6 +22,7 @@ const testDbConfig = {
 };
 
 let pool: pg.Pool;
+let migrationsRun = false;
 
 export function getTestDb(): pg.Pool {
   if (!pool) {
@@ -31,22 +32,27 @@ export function getTestDb(): pg.Pool {
 }
 
 beforeAll(async () => {
-  pool = new pg.Pool(testDbConfig);
+  if (!pool) {
+    pool = new pg.Pool(testDbConfig);
+  }
 
   // Verify connectivity
   await pool.query("SELECT 1");
 
-  // Run migrations
-  const dbUrl = `postgresql://${testDbConfig.user}:${testDbConfig.password}@${testDbConfig.host}:${testDbConfig.port}/${testDbConfig.database}`;
-  const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
+  // Run migrations only once across all test files
+  if (!migrationsRun) {
+    const dbUrl = `postgresql://${testDbConfig.user}:${testDbConfig.password}@${testDbConfig.host}:${testDbConfig.port}/${testDbConfig.database}`;
+    const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
 
-  await runner({
-    databaseUrl: dbUrl,
-    dir: migrationsDir,
-    direction: "up",
-    migrationsTable: "pgmigrations",
-    log: () => {},
-  });
+    await runner({
+      databaseUrl: dbUrl,
+      dir: migrationsDir,
+      direction: "up",
+      migrationsTable: "pgmigrations",
+      log: () => {},
+    });
+    migrationsRun = true;
+  }
 });
 
 afterEach(async () => {

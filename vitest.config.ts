@@ -9,6 +9,7 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     environment: "node",
+    fileParallelism: false,
     env: {
       MASTER_KEY: "test-master-key-for-encryption-do-not-use-in-prod",
       NODE_ENV: "test",
