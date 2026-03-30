@@ -6,6 +6,10 @@ import { generateRemediation, generateHostRemediationPlan, type AlertContext } f
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function escapeIlike(str: string): string {
+  return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
@@ -53,7 +57,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
 
       if (search) {
         conditions.push(`a.package_name ILIKE $${paramIdx++}`);
-        values.push(`%${search}%`);
+        values.push(`%${escapeIlike(search)}%`);
       }
 
       if (groupId) {
@@ -180,6 +184,13 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
       return;
     }
 
+    // Filter to valid UUIDs only to prevent PostgreSQL syntax errors
+    const validIds = alertIds.filter((id: unknown) => typeof id === "string" && UUID_RE.test(id));
+    if (validIds.length === 0) {
+      res.status(400).json({ error: "No valid alert IDs provided" });
+      return;
+    }
+
     try {
       const result = await pool.query(
         `UPDATE alerts
@@ -190,7 +201,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
          WHERE id = ANY($1)
            AND acknowledged = false
          RETURNING id`,
-        [alertIds, acknowledgedBy ?? null, notes ?? null]
+        [validIds, acknowledgedBy ?? null, notes ?? null]
       );
 
       logger.info(
