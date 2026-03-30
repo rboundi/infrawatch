@@ -5,11 +5,12 @@ import { createReadStream } from "fs";
 import { stat } from "fs/promises";
 import { basename } from "path";
 import { ReportGenerator } from "../services/reports/report-generator.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_REPORT_TYPES = ["weekly_summary", "eol_report", "alert_report", "host_inventory"];
 
-export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerator: ReportGenerator): Router {
+export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerator: ReportGenerator, audit?: AuditLogger): Router {
   const router = Router();
 
   // GET /reports/schedules
@@ -61,7 +62,18 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
       // Reload cron schedules
       await reportGenerator.loadSchedules();
 
-      res.status(201).json(formatSchedule(result.rows[0]));
+      const created = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "report_schedule.created",
+        entityType: "report_schedule",
+        entityId: created.id,
+        details: { name, reportType, scheduleCron: scheduleCron ?? "0 8 * * 1", enabled: enabled ?? true },
+        ipAddress: req.ip ?? null,
+      });
+
+      res.status(201).json(formatSchedule(created));
     } catch (err) {
       next(err);
     }
@@ -109,6 +121,16 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
       // Reload cron schedules
       await reportGenerator.loadSchedules();
 
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "report_schedule.updated",
+        entityType: "report_schedule",
+        entityId: id,
+        details: { name, reportType, scheduleCron, recipients, filters, enabled },
+        ipAddress: req.ip ?? null,
+      });
+
       res.json(formatSchedule(result.rows[0]));
     } catch (err) {
       next(err);
@@ -129,6 +151,17 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
       }
 
       await reportGenerator.loadSchedules();
+
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "report_schedule.deleted",
+        entityType: "report_schedule",
+        entityId: id,
+        details: {},
+        ipAddress: req.ip ?? null,
+      });
+
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -162,6 +195,16 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
         enabled: row.enabled,
       });
 
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "report.generated",
+        entityType: "report_schedule",
+        entityId: id,
+        details: { reportId, reportType: row.report_type, scheduleName: row.name },
+        ipAddress: req.ip ?? null,
+      });
+
       res.json({ message: "Report generated", reportId });
     } catch (err) {
       next(err);
@@ -177,6 +220,17 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
       }
 
       const html = await reportGenerator.generatePreview(reportType, filters ?? {});
+
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "report.preview_generated",
+        entityType: "report",
+        entityId: null,
+        details: { reportType, filters: filters ?? {} },
+        ipAddress: req.ip ?? null,
+      });
+
       res.type("html").send(html);
     } catch (err) {
       next(err);
