@@ -173,8 +173,7 @@ export class UserService {
         return; // Users already exist, skip
       }
 
-      const password = crypto.randomBytes(8).toString("hex");
-      const hash = await this.hashPassword(password);
+      const hash = await this.hashPassword("admin");
 
       await client.query(
         `INSERT INTO users (username, email, password_hash, display_name, role, force_password_change)
@@ -188,8 +187,8 @@ export class UserService {
       this.logger.warn("============================================");
       this.logger.warn("  DEFAULT ADMIN CREDENTIALS");
       this.logger.warn("  Username: admin");
-      this.logger.warn(`  Password: ${password}`);
-      this.logger.warn("  Change this password on first login.");
+      this.logger.warn("  Password: admin");
+      this.logger.warn("  You will be asked to change this on first login.");
       this.logger.warn("============================================");
     } catch (err) {
       await client.query("ROLLBACK");
