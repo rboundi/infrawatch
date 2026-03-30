@@ -2,13 +2,15 @@ import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 import { GroupAssignmentService } from "../services/group-assignment.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createGroupRoutes(
   pool: pg.Pool,
   logger: Logger,
-  groupAssignment: GroupAssignmentService
+  groupAssignment: GroupAssignmentService,
+  audit?: AuditLogger
 ): Router {
   const router = Router();
 
@@ -86,6 +88,7 @@ export function createGroupRoutes(
         ]
       );
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "host_group.created", entityType: "host_group", entityId: result.rows[0].id, details: { name }, ipAddress: req.ip ?? null });
       res.status(201).json(formatGroup(result.rows[0]));
     } catch (err: any) {
       if (err.code === "23505") {
@@ -207,6 +210,7 @@ export function createGroupRoutes(
         return;
       }
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "host_group.updated", entityType: "host_group", entityId: id, ipAddress: req.ip ?? null });
       res.json(formatGroup(result.rows[0]));
     } catch (err: any) {
       if (err.code === "23505") {
@@ -235,6 +239,7 @@ export function createGroupRoutes(
         res.status(404).json({ error: "Group not found" });
         return;
       }
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "host_group.deleted", entityType: "host_group", entityId: id, ipAddress: req.ip ?? null });
       res.status(204).end();
     } catch (err) {
       logger.error({ err }, "Failed to delete group");
@@ -266,6 +271,8 @@ export function createGroupRoutes(
       // Re-evaluate group membership
       const evalResult = await groupAssignment.evaluateGroup(id);
 
+      const ruleResult = result;
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.rules_added", entityType: "host_group", entityId: id, details: { ruleId: ruleResult.rows[0].id }, ipAddress: req.ip ?? null });
       res.status(201).json({
         rule: formatRule(result.rows[0]),
         evaluation: evalResult,
@@ -293,6 +300,7 @@ export function createGroupRoutes(
 
       // Re-evaluate
       const evalResult = await groupAssignment.evaluateGroup(id);
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.rules_removed", entityType: "host_group", entityId: id, details: { ruleId }, ipAddress: req.ip ?? null });
       res.json({ deleted: true, evaluation: evalResult });
     } catch (err) {
       logger.error({ err }, "Failed to delete rule");
@@ -326,6 +334,7 @@ export function createGroupRoutes(
         if (result.rowCount && result.rowCount > 0) added++;
       }
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.members_added", entityType: "host_group", entityId: id, details: { hostIds }, ipAddress: req.ip ?? null });
       res.json({ added });
     } catch (err) {
       logger.error({ err }, "Failed to add members");
@@ -354,6 +363,7 @@ export function createGroupRoutes(
         if (result.rowCount && result.rowCount > 0) removed++;
       }
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.members_removed", entityType: "host_group", entityId: id, details: { hostIds }, ipAddress: req.ip ?? null });
       res.json({ removed });
     } catch (err) {
       logger.error({ err }, "Failed to remove members");
