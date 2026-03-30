@@ -72,7 +72,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
     const id = req.params.id as string;
     try {
       const result = await pool.query(
-        `SELECT id, name, type, scan_interval_hours, last_scanned_at, last_scan_status, last_scan_error, enabled, created_at, updated_at
+        `SELECT id, name, type, connection_config, scan_interval_hours, last_scanned_at, last_scan_status, last_scan_error, enabled, created_at, updated_at
          FROM scan_targets
          WHERE id = $1`,
         [id]
@@ -83,7 +83,29 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
         return;
       }
 
-      res.json(formatTarget(result.rows[0]));
+      const row = result.rows[0];
+      const target = formatTarget(row);
+
+      // Decrypt and include connectionConfig for single-target detail view
+      if (row.connection_config && config.masterKey) {
+        try {
+          const decrypted = decrypt(
+            row.connection_config as string,
+            config.masterKey,
+          ) as Record<string, unknown>;
+          // Redact sensitive fields
+          const redacted = { ...decrypted };
+          if (redacted.password) redacted.password = "••••••••";
+          if (redacted.privateKey) redacted.privateKey = "••••••••";
+          if (redacted.secretAccessKey) redacted.secretAccessKey = "••••••••";
+          if (redacted.token) redacted.token = "••••••••";
+          (target as Record<string, unknown>).connectionConfig = redacted;
+        } catch {
+          logger.warn({ targetId: id }, "Failed to decrypt connection config");
+        }
+      }
+
+      res.json(target);
     } catch (err) {
       logger.error({ err }, "Failed to get scan target");
       res.status(500).json({ error: "Failed to get scan target" });

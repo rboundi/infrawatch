@@ -85,6 +85,14 @@ export function useScanTargets() {
   });
 }
 
+export function useScanTarget(id: string | undefined) {
+  return useQuery({
+    queryKey: ["targets", id],
+    queryFn: () => get<ScanTarget>(`/targets/${id}`),
+    enabled: !!id,
+  });
+}
+
 export function useHostPackages(
   id: string | undefined,
   params: { search?: string; ecosystem?: string; hasUpdate?: string; page?: number; limit?: number } = {}

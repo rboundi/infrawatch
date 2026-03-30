@@ -127,6 +127,7 @@ export interface ScanTarget {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  connectionConfig?: Record<string, unknown>;
 }
 
 export interface ScanLog {

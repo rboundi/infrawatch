@@ -5,6 +5,7 @@ import {
   useCreateTarget,
   useUpdateTarget,
   useScanTargets,
+  useScanTarget,
   useTestConnection,
 } from "../api/hooks";
 import { Skeleton } from "../components/Skeleton";
@@ -38,9 +39,9 @@ export function TargetFormPage() {
   const navigate = useNavigate();
   const isEdit = !!id;
 
-  // Load existing target if editing
+  // Load existing target if editing (detail endpoint includes decrypted config)
   const { data: targets } = useScanTargets();
-  const existingTarget = isEdit ? targets?.find((t) => t.id === id) : undefined;
+  const { data: existingTarget } = useScanTarget(isEdit ? id : undefined);
 
   // Form state
   const [name, setName] = useState("");
@@ -49,6 +50,7 @@ export function TargetFormPage() {
   const [environmentTag, setEnvironmentTag] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<FormErrors>({});
+  const [initialLoadDone, setInitialLoadDone] = useState(!isEdit);
 
   // Test state
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
@@ -63,16 +65,23 @@ export function TargetFormPage() {
       setName(existingTarget.name);
       setType(existingTarget.type);
       setScanIntervalHours(existingTarget.scanIntervalHours);
-      // Note: connectionConfig is encrypted server-side, so we can't pre-populate it
+      if (existingTarget.connectionConfig) {
+        setConfig(existingTarget.connectionConfig);
+        if (existingTarget.connectionConfig.environmentTag) {
+          setEnvironmentTag(existingTarget.connectionConfig.environmentTag as string);
+        }
+      }
+      setInitialLoadDone(true);
     }
   }, [existingTarget]);
 
-  // Reset config when type changes
+  // Reset config when type changes (skip during initial edit load)
   useEffect(() => {
+    if (!initialLoadDone) return;
     setConfig({});
     setErrors({});
     setTestResult(null);
-  }, [type]);
+  }, [type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateConfig = (key: string, value: unknown) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
@@ -168,14 +177,18 @@ export function TargetFormPage() {
   const mutationError = createMutation.error ?? updateMutation.error;
 
   if (isEdit && !existingTarget && targets) {
-    return (
-      <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-        Target not found.
-      </div>
-    );
+    // Target detail hasn't loaded yet but list is available — check if id exists
+    const found = targets.find((t) => t.id === id);
+    if (!found) {
+      return (
+        <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+          Target not found.
+        </div>
+      );
+    }
   }
 
-  if (isEdit && !targets) {
+  if (isEdit && !existingTarget) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-6 w-32" />

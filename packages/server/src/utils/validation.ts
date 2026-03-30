@@ -7,6 +7,7 @@ const VALID_SCAN_TARGET_TYPES = [
   "aws",
   "vmware",
   "docker",
+  "network_discovery",
 ] as const;
 
 export const validateScanTarget = [
