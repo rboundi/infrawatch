@@ -73,32 +73,22 @@ export class MaintenanceService {
       this.settings.get<number>("scan_log_retention_days"),
     );
 
-    // Expired sessions
-    summary.expired_sessions = await this.deleteWhere(
-      "sessions",
-      "expires_at < NOW()",
+    summary.expired_sessions = await this.deleteExpiredSessions();
+
+    summary.removed_packages = await this.deleteRemovedPackages(
+      this.settings.get<number>("removed_package_cleanup_days"),
     );
 
-    // Removed packages past cleanup threshold
-    const pkgDays = this.settings.get<number>("removed_package_cleanup_days");
-    summary.removed_packages = await this.deleteWhere(
-      "host_packages",
-      `removed_at IS NOT NULL AND removed_at < NOW() - INTERVAL '${pkgDays} days'`,
-    );
-
-    // Stale connections
-    const connDays = this.settings.get<number>("stale_connection_cleanup_days");
-    summary.stale_connections = await this.deleteWhere(
+    summary.stale_connections = await this.deleteOlderThan(
       "host_connections",
-      `last_seen_at < NOW() - INTERVAL '${connDays} days'`,
+      "last_seen_at",
+      this.settings.get<number>("stale_connection_cleanup_days"),
     );
 
-    // Old generated reports
-    const reportDays = this.settings.get<number>("report_retention_days");
     summary.generated_reports = await this.deleteOlderThan(
       "generated_reports",
       "created_at",
-      reportDays,
+      this.settings.get<number>("report_retention_days"),
     );
 
     this.logger.info({ summary }, "Maintenance run complete");
@@ -110,6 +100,7 @@ export class MaintenanceService {
     column: string,
     days: number,
   ): Promise<number> {
+    // table and column are hardcoded internal strings, not user input
     try {
       const result = await this.pool.query(
         `DELETE FROM ${table} WHERE ${column} < NOW() - $1::interval`,
@@ -122,14 +113,27 @@ export class MaintenanceService {
     }
   }
 
-  private async deleteWhere(table: string, condition: string): Promise<number> {
+  private async deleteRemovedPackages(days: number): Promise<number> {
     try {
       const result = await this.pool.query(
-        `DELETE FROM ${table} WHERE ${condition}`,
+        "DELETE FROM host_packages WHERE removed_at IS NOT NULL AND removed_at < NOW() - $1::interval",
+        [`${days} days`],
       );
       return result.rowCount ?? 0;
     } catch (err) {
-      this.logger.error({ err, table }, `Maintenance cleanup failed for ${table}`);
+      this.logger.error({ err }, "Maintenance cleanup failed for host_packages");
+      return 0;
+    }
+  }
+
+  private async deleteExpiredSessions(): Promise<number> {
+    try {
+      const result = await this.pool.query(
+        "DELETE FROM sessions WHERE expires_at < NOW()",
+      );
+      return result.rowCount ?? 0;
+    } catch (err) {
+      this.logger.error({ err }, "Maintenance cleanup failed for sessions");
       return 0;
     }
   }

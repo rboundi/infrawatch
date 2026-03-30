@@ -157,33 +157,45 @@ export class UserService {
   // ─── Default admin seeding ───
 
   async ensureDefaultAdmin(): Promise<void> {
-    const userCount = await this.pool.query<{ count: string }>(
-      "SELECT COUNT(*) AS count FROM users",
-    );
+    // Use advisory lock to prevent race condition on concurrent startup
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Lock to prevent concurrent admin seeding
+      await client.query("SELECT pg_advisory_xact_lock(1)");
 
-    if (parseInt(userCount.rows[0].count, 10) > 0) {
-      return; // Users already exist, skip
+      const userCount = await client.query<{ count: string }>(
+        "SELECT COUNT(*) AS count FROM users",
+      );
+
+      if (parseInt(userCount.rows[0].count, 10) > 0) {
+        await client.query("COMMIT");
+        return; // Users already exist, skip
+      }
+
+      const password = crypto.randomBytes(8).toString("hex");
+      const hash = await this.hashPassword(password);
+
+      await client.query(
+        `INSERT INTO users (username, email, password_hash, display_name, role, force_password_change)
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (username) DO NOTHING`,
+        ["admin", "admin@localhost", hash, "Administrator", "admin"],
+      );
+
+      await client.query("COMMIT");
+
+      this.logger.warn("============================================");
+      this.logger.warn("  DEFAULT ADMIN CREDENTIALS");
+      this.logger.warn("  Username: admin");
+      this.logger.warn(`  Password: ${password}`);
+      this.logger.warn("  Change this password on first login.");
+      this.logger.warn("============================================");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const password = crypto.randomBytes(8).toString("hex");
-    await this.createUser({
-      username: "admin",
-      email: "admin@localhost",
-      password,
-      displayName: "Administrator",
-      role: "admin",
-    });
-
-    // Set force_password_change on the newly created admin
-    await this.pool.query(
-      "UPDATE users SET force_password_change = true WHERE username = 'admin'",
-    );
-
-    console.log("============================================");
-    console.log("  DEFAULT ADMIN CREDENTIALS");
-    console.log("  Username: admin");
-    console.log(`  Password: ${password}`);
-    console.log("  Change this password on first login.");
-    console.log("============================================");
   }
 }

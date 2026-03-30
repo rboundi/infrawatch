@@ -105,6 +105,7 @@ export function useUsers(filters: UserFilters = {}) {
   return useQuery({
     queryKey: ["admin", "users", filters],
     queryFn: () => get<UserListResponse>("/users", filters as Record<string, unknown>),
+    staleTime: 30_000,
   });
 }
 
@@ -113,6 +114,7 @@ export function useUser(id: string | undefined) {
     queryKey: ["admin", "users", id],
     queryFn: () => get<User>(`/users/${id}`),
     enabled: !!id,
+    staleTime: 30_000,
   });
 }
 
@@ -135,9 +137,11 @@ export function useUpdateUser() {
 }
 
 export function useResetPassword() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
       post<{ generatedPassword: string }>(`/users/${id}/reset-password`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }
 
@@ -171,6 +175,7 @@ export function useSettings() {
   return useQuery({
     queryKey: ["admin", "settings"],
     queryFn: () => get<SettingsResponse>("/settings"),
+    staleTime: 60_000,
   });
 }
 
@@ -195,6 +200,7 @@ export function useAuditLog(filters: AuditLogFilters = {}) {
   return useQuery({
     queryKey: ["admin", "audit-log", filters],
     queryFn: () => get<AuditLogResponse>("/audit-log", filters as Record<string, unknown>),
+    staleTime: 30_000,
   });
 }
 

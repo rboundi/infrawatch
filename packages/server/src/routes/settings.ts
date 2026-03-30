@@ -41,13 +41,17 @@ export function createSettingsRoutes(
       const changes = await settingsService.bulkUpdate(updates, req.user!.id);
 
       for (const change of changes) {
+        const isSensitive = change.key.includes("password") || change.key.includes("secret") || change.key.includes("token");
         audit.log({
           userId: req.user!.id,
           username: req.user!.username,
           action: "setting.updated",
           entityType: "system_setting",
           entityId: change.key,
-          details: { oldValue: change.oldValue, newValue: change.newValue },
+          details: {
+            oldValue: isSensitive ? "[redacted]" : change.oldValue,
+            newValue: isSensitive ? "[redacted]" : change.newValue,
+          },
           ipAddress: req.ip ?? null,
         });
       }
@@ -114,7 +118,17 @@ export function createSettingsRoutes(
 
       res.json({ success: true, message: `Test email sent to ${toEmail}` });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "SMTP test failed";
+      // Sanitize error message — nodemailer errors may contain credentials
+      let message = "SMTP connection failed";
+      if (err instanceof Error) {
+        if (err.message.includes("ECONNREFUSED")) message = "Connection refused — check SMTP host and port";
+        else if (err.message.includes("ETIMEDOUT")) message = "Connection timed out — check SMTP host and port";
+        else if (err.message.includes("ENOTFOUND")) message = "SMTP host not found — check hostname";
+        else if (err.message.includes("auth")) message = "Authentication failed — check SMTP credentials";
+        else if (err.message.includes("certificate")) message = "TLS certificate error — check TLS settings";
+        else message = "SMTP test failed — check server logs for details";
+      }
+      _logger.error({ err }, "SMTP test failed");
       res.json({ success: false, message });
     }
   });

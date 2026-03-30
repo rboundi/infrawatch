@@ -267,12 +267,13 @@ export function createUserRoutes(
         return;
       }
 
-      // Cannot demote if last admin
+      // Cannot demote if last admin (use FOR UPDATE to prevent TOCTOU race)
       if (role && role !== user.role && user.role === "admin") {
         const adminCount = await pool.query<{ count: string }>(
-          "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = true",
+          "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = true AND id != $1",
+          [id],
         );
-        if (parseInt(adminCount.rows[0].count, 10) <= 1) {
+        if (parseInt(adminCount.rows[0].count, 10) < 1) {
           res.status(400).json({ error: "Cannot demote the last admin" });
           return;
         }
@@ -364,14 +365,18 @@ export function createUserRoutes(
       });
 
       const updated = await userService.findById(id);
+      if (!updated) {
+        res.status(404).json({ error: "User not found after update" });
+        return;
+      }
       res.json({
-        id: updated!.id,
-        username: updated!.username,
-        email: updated!.email,
-        displayName: updated!.display_name,
-        role: updated!.role,
-        isActive: updated!.is_active,
-        updatedAt: updated!.updated_at,
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        displayName: updated.display_name,
+        role: updated.role,
+        isActive: updated.is_active,
+        updatedAt: updated.updated_at,
       });
     } catch (err) {
       logger.error({ err }, "Update user error");
@@ -399,12 +404,13 @@ export function createUserRoutes(
         return;
       }
 
-      // Cannot delete last admin
+      // Cannot delete last admin (exclude self from count to check if others exist)
       if (user.role === "admin") {
         const adminCount = await pool.query<{ count: string }>(
-          "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = true",
+          "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = true AND id != $1",
+          [id],
         );
-        if (parseInt(adminCount.rows[0].count, 10) <= 1) {
+        if (parseInt(adminCount.rows[0].count, 10) < 1) {
           res.status(400).json({ error: "Cannot delete the last admin" });
           return;
         }

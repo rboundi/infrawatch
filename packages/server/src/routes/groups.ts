@@ -323,16 +323,16 @@ export function createGroupRoutes(
         return;
       }
 
-      let added = 0;
-      for (const hostId of hostIds) {
-        const result = await pool.query(
-          `INSERT INTO host_group_members (host_id, host_group_id, assigned_by)
-           VALUES ($1, $2, 'manual')
-           ON CONFLICT (host_id, host_group_id) DO NOTHING`,
-          [hostId, id]
-        );
-        if (result.rowCount && result.rowCount > 0) added++;
-      }
+      // Batch insert all members in a single query
+      const values = hostIds.map((_: string, i: number) => `($${i * 2 + 1}, $${i * 2 + 2}, 'manual')`).join(", ");
+      const params = hostIds.flatMap((hostId: string) => [hostId, id]);
+      const result = await pool.query(
+        `INSERT INTO host_group_members (host_id, host_group_id, assigned_by)
+         VALUES ${values}
+         ON CONFLICT (host_id, host_group_id) DO NOTHING`,
+        params,
+      );
+      const added = result.rowCount ?? 0;
 
       audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.members_added", entityType: "host_group", entityId: id, details: { hostIds }, ipAddress: req.ip ?? null });
       res.json({ added });
@@ -353,15 +353,13 @@ export function createGroupRoutes(
         return;
       }
 
-      let removed = 0;
-      for (const hostId of hostIds) {
-        const result = await pool.query(
-          `DELETE FROM host_group_members
-           WHERE host_id = $1 AND host_group_id = $2 AND assigned_by = 'manual'`,
-          [hostId, id]
-        );
-        if (result.rowCount && result.rowCount > 0) removed++;
-      }
+      // Batch delete all members in a single query
+      const result = await pool.query(
+        `DELETE FROM host_group_members
+         WHERE host_id = ANY($1) AND host_group_id = $2 AND assigned_by = 'manual'`,
+        [hostIds, id],
+      );
+      const removed = result.rowCount ?? 0;
 
       audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "group.members_removed", entityType: "host_group", entityId: id, details: { hostIds }, ipAddress: req.ip ?? null });
       res.json({ removed });

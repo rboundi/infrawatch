@@ -272,16 +272,18 @@ async function start() {
   maintenance.start();
 
   // Daily digest at configured hour (default 8 AM)
+  let digestTimer: ReturnType<typeof setTimeout> | null = null;
+  let digestInterval: ReturnType<typeof setInterval> | null = null;
   const scheduleDigest = () => {
     const now = new Date();
     const next = new Date(now);
     next.setHours(config.alertDigestHour, 0, 0, 0);
     if (next <= now) next.setDate(next.getDate() + 1);
     const delay = next.getTime() - now.getTime();
-    setTimeout(() => {
+    digestTimer = setTimeout(() => {
       notificationService.sendDailyDigest();
       // Schedule next run 24h later
-      setInterval(() => notificationService.sendDailyDigest(), 24 * 60 * 60 * 1000);
+      digestInterval = setInterval(() => notificationService.sendDailyDigest(), 24 * 60 * 60 * 1000);
     }, delay);
   };
   scheduleDigest();
@@ -324,6 +326,8 @@ async function start() {
     maintenance.stop();
     clearInterval(snapshotTimer);
     clearInterval(sessionCleanupTimer);
+    if (digestTimer) clearTimeout(digestTimer);
+    if (digestInterval) clearInterval(digestInterval);
     logger.info("Background services stopped");
 
     // 3. Close database pool

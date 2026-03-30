@@ -69,8 +69,7 @@ export function createAuthRoutes(
           reason: "account_locked",
         });
         res.status(423).json({
-          error: "Account locked",
-          lockedUntil: user.locked_until,
+          error: "Account temporarily locked due to too many failed attempts. Try again later.",
         });
         return;
       }

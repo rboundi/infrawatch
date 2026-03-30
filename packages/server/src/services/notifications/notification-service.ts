@@ -45,12 +45,14 @@ export class NotificationService {
     return (this.settings?.get<number>("notification_dedup_hours") ?? 1) * 60 * 60 * 1000;
   }
 
+  private dedupTimer: ReturnType<typeof setInterval> | null = null;
+
   start(): void {
     if (this.timer) return;
     // Process queue every second
     this.timer = setInterval(() => this.processQueue(), 1_000);
     // Clean dedup cache every 10 minutes
-    setInterval(() => this.cleanDedupCache(), 10 * 60 * 1000);
+    this.dedupTimer = setInterval(() => this.cleanDedupCache(), 10 * 60 * 1000);
     this.logger.info("Notification service started");
   }
 
@@ -58,6 +60,10 @@ export class NotificationService {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+    if (this.dedupTimer) {
+      clearInterval(this.dedupTimer);
+      this.dedupTimer = null;
     }
     this.logger.info("Notification service stopped");
   }

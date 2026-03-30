@@ -153,7 +153,7 @@ export class VersionChecker {
 
     if (critical === 0 && high === 0) return; // only notify for critical/high
 
-    await this.notificationService!.notify({
+    await this.notificationService?.notify({
       eventType: "alert_created",
       severity: critical > 0 ? "critical" : "high",
       title: `${alertsCreated} New Version Alerts`,
