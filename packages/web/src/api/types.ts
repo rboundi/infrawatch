@@ -141,6 +141,18 @@ export interface ScanLog {
   errorMessage: string | null;
 }
 
+export interface ScanLogEntry {
+  id: string;
+  scanLogId: string;
+  timestamp: string;
+  level: "info" | "warn" | "error" | "success";
+  message: string;
+}
+
+export interface ScanLogDetail extends ScanLog {
+  entries: ScanLogEntry[];
+}
+
 export interface TestConnectionResult {
   success: boolean;
   message: string;

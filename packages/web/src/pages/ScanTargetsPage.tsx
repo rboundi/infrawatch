@@ -21,6 +21,7 @@ import {
 } from "../api/hooks";
 import { CardSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
+import { ScanLogPanel } from "../components/ScanLogPanel";
 import type { ScanTarget } from "../api/types";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -99,6 +100,7 @@ export function ScanTargetsPage() {
 
 function TargetCard({ target }: { target: ScanTarget }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeScanLogId, setActiveScanLogId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
@@ -115,7 +117,11 @@ function TargetCard({ target }: { target: ScanTarget }) {
   };
 
   const handleScanNow = () => {
-    triggerScan.mutate(target.id);
+    triggerScan.mutate(target.id, {
+      onSuccess: (data) => {
+        setActiveScanLogId(data.scanLogId);
+      },
+    });
   };
 
   const handleTest = () => {
@@ -254,6 +260,13 @@ function TargetCard({ target }: { target: ScanTarget }) {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {/* Scan log panel */}
+      <ScanLogPanel
+        targetId={target.id}
+        lastScanStatus={target.lastScanStatus}
+        activeScanLogId={activeScanLogId}
+      />
 
       {/* Delete confirmation */}
       {showDeleteConfirm && (

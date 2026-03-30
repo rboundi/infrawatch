@@ -42,6 +42,8 @@ import { ReportGenerator } from "./services/reports/report-generator.js";
 import { NotificationService } from "./services/notifications/notification-service.js";
 import { UserService } from "./services/user-service.js";
 import { SessionService } from "./services/session-service.js";
+import { ScanLogger } from "./services/scan-logger.js";
+import { createScanLogRoutes } from "./routes/scan-logs.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -180,6 +182,7 @@ const settingsService = new SettingsService(pool, logger);
 const userService = new UserService(pool, logger, settingsService);
 const sessionService = new SessionService(pool, logger, settingsService);
 const audit = new AuditLogger(pool, logger);
+const scanLogger = new ScanLogger(pool, logger);
 const maintenance = new MaintenanceService(pool, logger, settingsService);
 const requireAuth = createRequireAuth(sessionService);
 
@@ -194,6 +197,7 @@ notificationService.setSettings(settingsService);
 orchestrator.setNotificationService(notificationService);
 orchestrator.setGroupAssignment(groupAssignment);
 orchestrator.setComplianceScorer(complianceScorer);
+orchestrator.setScanLogger(scanLogger);
 staleChecker.setNotificationService(notificationService);
 versionChecker.setNotificationService(notificationService);
 eolChecker.setNotificationService(notificationService);
@@ -204,7 +208,8 @@ eolChecker.setNotificationService(notificationService);
 app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionService, settingsService));
 
 // All remaining routes require authentication
-app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger, audit));
+app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger, audit, scanLogger));
+app.use("/api/v1/targets/:targetId/scan-logs", requireAuth, createScanLogRoutes(pool, logger, scanLogger));
 app.use("/api/v1/hosts", requireAuth, createHostRoutes(pool, logger, audit));
 app.use("/api/v1/alerts", requireAuth, createAlertRoutes(pool, logger, audit));
 app.use("/api/v1/stats", requireAuth, createStatsRoutes(pool, logger));

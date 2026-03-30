@@ -8,6 +8,7 @@ import type {
   AlertsSummary,
   ScanTarget,
   ScanLog,
+  ScanLogDetail,
   PaginatedResponse,
   HostsParams,
   AlertsParams,
@@ -90,6 +91,22 @@ export function useScanTarget(id: string | undefined) {
     queryKey: ["targets", id],
     queryFn: () => get<ScanTarget>(`/targets/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useScanLogs(targetId: string | undefined, params: { page?: number; limit?: number } = {}) {
+  return useQuery({
+    queryKey: ["targets", targetId, "scan-logs", params],
+    queryFn: () => get<PaginatedResponse<ScanLog>>(`/targets/${targetId}/scan-logs`, params as Record<string, unknown>),
+    enabled: !!targetId,
+  });
+}
+
+export function useScanLogDetail(targetId: string | undefined, logId: string | undefined) {
+  return useQuery({
+    queryKey: ["targets", targetId, "scan-logs", logId],
+    queryFn: () => get<ScanLogDetail>(`/targets/${targetId}/scan-logs/${logId}`),
+    enabled: !!targetId && !!logId,
   });
 }
 

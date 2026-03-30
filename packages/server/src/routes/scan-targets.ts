@@ -8,8 +8,9 @@ import { encrypt, decrypt } from "../utils/crypto.js";
 import { config } from "../config.js";
 import { DataIngestionService } from "../services/data-ingestion.js";
 import type { AuditLogger } from "../services/audit-logger.js";
+import type { ScanLogger } from "../services/scan-logger.js";
 
-export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
+export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger, scanLogger?: ScanLogger): Router {
   const router = Router();
 
   // ─── POST /api/v1/targets ───
@@ -271,7 +272,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
       );
 
       // Run scan asynchronously — don't await
-      runScanAsync(pool, logger, target, scanLogId).catch((err) => {
+      runScanAsync(pool, logger, target, scanLogId, scanLogger).catch((err) => {
         logger.error({ err, scanLogId }, "Async scan failed unexpectedly");
       });
 
@@ -330,19 +331,29 @@ async function runScanAsync(
   pool: pg.Pool,
   logger: Logger,
   target: TargetWithConfig,
-  scanLogId: string
+  scanLogId: string,
+  sl?: ScanLogger,
 ): Promise<void> {
   const startTime = Date.now();
   const ingestion = new DataIngestionService(pool, logger);
 
   try {
+    await sl?.log(scanLogId, "info", `Starting scan for "${target.name}" (${target.type})`);
+    await sl?.log(scanLogId, "info", "Connecting to target...");
+
     const scanner = createScanner(target.type);
 
+    await sl?.log(scanLogId, "info", "Scanning target — discovering hosts, packages, and services...");
     const result = await scanner.scan({
       type: target.type,
       connectionConfig: target.connectionConfig,
     });
 
+    const hostCount = result.hosts?.length ?? 0;
+    const pkgCount = result.hosts?.reduce((sum, h) => sum + (h.packages?.length ?? 0), 0) ?? 0;
+    await sl?.log(scanLogId, "info", `Scan returned ${hostCount} host(s) with ${pkgCount} package(s)`);
+
+    await sl?.log(scanLogId, "info", "Processing and ingesting scan results...");
     const { hostsUpserted, packagesFound } =
       await ingestion.processResults(target.id, result);
 
@@ -360,12 +371,19 @@ async function runScanAsync(
       [target.id]
     );
 
+    const durationMs = Date.now() - startTime;
+    await sl?.log(scanLogId, "success", `Scan completed — ${hostsUpserted} host(s), ${packagesFound} package(s) in ${(durationMs / 1000).toFixed(1)}s`);
+    sl?.complete(scanLogId, "success");
+
     logger.info(
-      { targetId: target.id, scanLogId, hosts: hostsUpserted, packages: packagesFound, durationMs: Date.now() - startTime },
+      { targetId: target.id, scanLogId, hosts: hostsUpserted, packages: packagesFound, durationMs },
       "Scan completed successfully"
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+
+    await sl?.log(scanLogId, "error", `Scan failed: ${errorMessage}`);
+    sl?.complete(scanLogId, "failed");
 
     await pool.query(
       `UPDATE scan_logs SET status = 'failed', completed_at = NOW(), error_message = $1 WHERE id = $2`,

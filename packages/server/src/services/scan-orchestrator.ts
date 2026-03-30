@@ -8,6 +8,7 @@ import type { NotificationService } from "./notifications/notification-service.j
 import type { GroupAssignmentService } from "./group-assignment.js";
 import type { ComplianceScorer } from "./compliance-scorer.js";
 import type { SettingsService } from "./settings-service.js";
+import type { ScanLogger } from "./scan-logger.js";
 
 export class ScanOrchestrator {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -17,6 +18,7 @@ export class ScanOrchestrator {
   private notificationService?: NotificationService;
   private complianceScorer?: ComplianceScorer;
   private settings?: SettingsService;
+  private scanLogger?: ScanLogger;
 
   constructor(
     private pool: pg.Pool,
@@ -47,6 +49,10 @@ export class ScanOrchestrator {
 
   setComplianceScorer(scorer: ComplianceScorer): void {
     this.complianceScorer = scorer;
+  }
+
+  setScanLogger(sl: ScanLogger): void {
+    this.scanLogger = sl;
   }
 
   /**
@@ -151,13 +157,17 @@ export class ScanOrchestrator {
         `INSERT INTO scan_logs (scan_target_id, status) VALUES ($1, 'running') RETURNING id`,
         [target.id]
       );
-      scanLogId = logResult.rows[0].id;
+      scanLogId = logResult.rows[0].id as string;
+      const sl = this.scanLogger;
+      const logId = scanLogId;
 
       // Mark target as running
       await this.pool.query(
         `UPDATE scan_targets SET last_scan_status = 'running', updated_at = NOW() WHERE id = $1`,
         [target.id]
       );
+
+      await sl?.log(logId, "info", `Starting scan for "${target.name}" (${target.type})`);
 
       // Decrypt credentials
       if (!config.masterKey) {
@@ -167,6 +177,8 @@ export class ScanOrchestrator {
         target.connection_config as string,
         config.masterKey
       ) as Record<string, unknown>;
+
+      await sl?.log(logId, "info", "Connecting to target...");
 
       // Create scanner and run with timeout
       const scanner = createScanner(target.type);
@@ -182,9 +194,16 @@ export class ScanOrchestrator {
         );
       });
 
+      await sl?.log(logId, "info", "Scanning target — discovering hosts, packages, and services...");
+
       const results = await Promise.race([scanPromise, timeoutPromise]);
 
+      const hostCount = results.hosts?.length ?? 0;
+      const pkgCount = results.hosts?.reduce((sum, h) => sum + (h.packages?.length ?? 0), 0) ?? 0;
+      await sl?.log(logId, "info", `Scan returned ${hostCount} host(s) with ${pkgCount} package(s)`);
+
       // Process results via data ingestion service
+      await sl?.log(logId, "info", "Processing and ingesting scan results...");
       const { hostsUpserted, packagesFound } =
         await this.ingestion.processResults(target.id, results);
 
@@ -194,7 +213,7 @@ export class ScanOrchestrator {
          SET status = 'success', completed_at = NOW(),
              hosts_discovered = $1, packages_discovered = $2
          WHERE id = $3`,
-        [hostsUpserted, packagesFound, scanLogId]
+        [hostsUpserted, packagesFound, logId]
       );
 
       // Update target status
@@ -208,6 +227,7 @@ export class ScanOrchestrator {
 
       // Recalculate compliance scores for scanned hosts
       if (this.complianceScorer && hostsUpserted > 0) {
+        await sl?.log(logId, "info", "Recalculating compliance scores...");
         const hostIds = await this.pool.query<{ id: string }>(
           `SELECT id FROM hosts WHERE scan_target_id = $1`,
           [target.id]
@@ -218,6 +238,9 @@ export class ScanOrchestrator {
       }
 
       const durationMs = Date.now() - startTime;
+      await sl?.log(logId, "success", `Scan completed — ${hostsUpserted} host(s), ${packagesFound} package(s) in ${(durationMs / 1000).toFixed(1)}s`);
+      sl?.complete(logId, "success");
+
       this.logger.info(
         { targetId: target.id, scanLogId, hosts: hostsUpserted, packages: packagesFound, durationMs },
         `Scan completed for "${target.name}"`
@@ -230,6 +253,11 @@ export class ScanOrchestrator {
         { err, targetId: target.id, scanLogId, durationMs },
         `Scan failed for "${target.name}"`
       );
+
+      if (scanLogId) {
+        await this.scanLogger?.log(scanLogId, "error", `Scan failed: ${errorMessage}`);
+        this.scanLogger?.complete(scanLogId, "failed");
+      }
 
       // Update scan log
       if (scanLogId) {

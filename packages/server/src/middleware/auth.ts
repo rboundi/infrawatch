@@ -30,6 +30,12 @@ function extractToken(req: Request): string | null {
     return cookie;
   }
 
+  // Fall back to query param (for SSE EventSource which can't set headers)
+  const queryToken = req.query.token;
+  if (typeof queryToken === "string" && queryToken) {
+    return queryToken;
+  }
+
   return null;
 }
 
