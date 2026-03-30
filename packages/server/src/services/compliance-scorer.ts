@@ -21,6 +21,7 @@ function classify(score: number): Classification {
 
 export class ComplianceScorer {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private initialTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
 
   constructor(
@@ -33,7 +34,10 @@ export class ComplianceScorer {
     this.logger.info("Compliance scorer starting");
 
     // Run initial calculation after a short delay (let other services start first)
-    setTimeout(() => this.calculateAllScores(), 10_000);
+    this.initialTimer = setTimeout(() => {
+      this.initialTimer = null;
+      this.calculateAllScores();
+    }, 10_000);
 
     // Schedule daily at 2:00 AM
     const scheduleDaily = () => {
@@ -53,6 +57,10 @@ export class ComplianceScorer {
   }
 
   stop(): void {
+    if (this.initialTimer) {
+      clearTimeout(this.initialTimer);
+      this.initialTimer = null;
+    }
     if (this.timer) {
       clearTimeout(this.timer as unknown as ReturnType<typeof setTimeout>);
       clearInterval(this.timer);
@@ -144,32 +152,63 @@ export class ComplianceScorer {
   }
 
   private async computeBreakdown(hostId: string): Promise<ScoreBreakdown> {
-    // 1. Package Currency (35 pts)
-    const pkgResult = await this.pool.query<{ total: string; with_alerts: string }>(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(DISTINCT a.package_name) AS with_alerts
-       FROM discovered_packages dp
-       LEFT JOIN alerts a ON a.host_id = dp.host_id
-         AND a.package_name = dp.package_name
-         AND a.acknowledged = false
-       WHERE dp.host_id = $1 AND dp.removed_at IS NULL`,
-      [hostId]
-    );
+    // Run all 5 factor queries in parallel
+    const [pkgResult, eolResult, alertResult, scanResult, svcResult] = await Promise.all([
+      // 1. Package Currency (35 pts)
+      this.pool.query<{ total: string; with_alerts: string }>(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(DISTINCT a.package_name) AS with_alerts
+         FROM discovered_packages dp
+         LEFT JOIN alerts a ON a.host_id = dp.host_id
+           AND a.package_name = dp.package_name
+           AND a.acknowledged = false
+         WHERE dp.host_id = $1 AND dp.removed_at IS NULL`,
+        [hostId]
+      ),
+      // 2. EOL Status (25 pts)
+      this.pool.query<{ active_count: string; worst_days: string | null }>(
+        `SELECT
+           COUNT(*) AS active_count,
+           MAX(days_past_eol) AS worst_days
+         FROM eol_alerts
+         WHERE host_id = $1 AND status = 'active'`,
+        [hostId]
+      ),
+      // 3. Alert Resolution (20 pts)
+      this.pool.query<{ total: string; acknowledged: string }>(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE acknowledged = true) AS acknowledged
+         FROM alerts
+         WHERE host_id = $1 AND severity IN ('critical', 'high')`,
+        [hostId]
+      ),
+      // 4. Scan Freshness (10 pts)
+      this.pool.query<{ last_seen_at: string | null; scan_interval_hours: string | null }>(
+        `SELECT h.last_seen_at,
+                st.scan_interval_hours
+         FROM hosts h
+         LEFT JOIN scan_targets st ON st.id = h.scan_target_id
+         WHERE h.id = $1`,
+        [hostId]
+      ),
+      // 5. Service Health (10 pts)
+      this.pool.query<{ total: string; running_count: string }>(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE status = 'running') AS running_count
+         FROM services
+         WHERE host_id = $1`,
+        [hostId]
+      ),
+    ]);
+
     const totalPkgs = parseInt(pkgResult.rows[0].total, 10);
     const pkgsWithAlerts = parseInt(pkgResult.rows[0].with_alerts, 10);
     const upToDate = totalPkgs - pkgsWithAlerts;
     const packageCurrencyScore = totalPkgs === 0 ? 35 : 35 * (upToDate / totalPkgs);
 
-    // 2. EOL Status (25 pts)
-    const eolResult = await this.pool.query<{ active_count: string; worst_days: string | null }>(
-      `SELECT
-         COUNT(*) AS active_count,
-         MAX(days_past_eol) AS worst_days
-       FROM eol_alerts
-       WHERE host_id = $1 AND status = 'active'`,
-      [hostId]
-    );
     const activeEolAlerts = parseInt(eolResult.rows[0].active_count, 10);
     const worstEolDays = eolResult.rows[0].worst_days != null
       ? parseInt(eolResult.rows[0].worst_days, 10) : null;
@@ -178,35 +217,15 @@ export class ComplianceScorer {
     if (activeEolAlerts === 0) {
       eolScore = 25;
     } else if (worstEolDays !== null && worstEolDays > 0) {
-      // Past EOL
       eolScore = 0;
     } else {
-      // Within 90 days of EOL but not past
       eolScore = 15;
     }
 
-    // 3. Alert Resolution (20 pts)
-    const alertResult = await this.pool.query<{ total: string; acknowledged: string }>(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE acknowledged = true) AS acknowledged
-       FROM alerts
-       WHERE host_id = $1 AND severity IN ('critical', 'high')`,
-      [hostId]
-    );
     const totalCritHigh = parseInt(alertResult.rows[0].total, 10);
     const ackCritHigh = parseInt(alertResult.rows[0].acknowledged, 10);
     const alertScore = totalCritHigh === 0 ? 20 : 20 * (ackCritHigh / totalCritHigh);
 
-    // 4. Scan Freshness (10 pts)
-    const scanResult = await this.pool.query<{ last_seen_at: string | null; scan_interval_hours: string | null }>(
-      `SELECT h.last_seen_at,
-              st.scan_interval_hours
-       FROM hosts h
-       LEFT JOIN scan_targets st ON st.id = h.scan_target_id
-       WHERE h.id = $1`,
-      [hostId]
-    );
     const lastSeenAt = scanResult.rows[0]?.last_seen_at ?? null;
     const intervalHours = parseInt(scanResult.rows[0]?.scan_interval_hours ?? "24", 10);
     let scanScore: number;
@@ -225,15 +244,6 @@ export class ComplianceScorer {
       }
     }
 
-    // 5. Service Health (10 pts)
-    const svcResult = await this.pool.query<{ total: string; running_count: string }>(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE status = 'running') AS running_count
-       FROM services
-       WHERE host_id = $1`,
-      [hostId]
-    );
     const totalSvc = parseInt(svcResult.rows[0].total, 10);
     const runningSvc = parseInt(svcResult.rows[0].running_count, 10);
     const svcScore = totalSvc === 0 ? 10 : 10 * (runningSvc / totalSvc);
@@ -286,19 +296,15 @@ export class ComplianceScorer {
 
     for (const row of result.rows) {
       const score = Math.round(parseFloat(row.avg_score));
-      // Try update first, then insert if no row updated
-      const updated = await this.pool.query(
-        `UPDATE compliance_scores SET score = $1, classification = $2, calculated_at = NOW()
-         WHERE entity_type = 'environment' AND entity_name = $3 AND entity_id IS NULL`,
-        [score, classify(score), row.env]
+      await this.pool.query(
+        `INSERT INTO compliance_scores (entity_type, entity_id, entity_name, score, classification, breakdown, calculated_at)
+         VALUES ('environment', NULL, $1, $2, $3, '{}'::jsonb, NOW())
+         ON CONFLICT (entity_type, entity_name) WHERE entity_id IS NULL DO UPDATE SET
+           score = EXCLUDED.score,
+           classification = EXCLUDED.classification,
+           calculated_at = NOW()`,
+        [row.env, score, classify(score)]
       );
-      if (updated.rowCount === 0) {
-        await this.pool.query(
-          `INSERT INTO compliance_scores (entity_type, entity_id, entity_name, score, classification, breakdown, calculated_at)
-           VALUES ('environment', NULL, $1, $2, $3, '{}', NOW())`,
-          [row.env, score, classify(score)]
-        );
-      }
     }
   }
 
@@ -309,18 +315,15 @@ export class ComplianceScorer {
     const score = Math.round(parseFloat(result.rows[0].avg_score));
     const classification = classify(score);
 
-    const updated = await this.pool.query(
-      `UPDATE compliance_scores SET score = $1, classification = $2, calculated_at = NOW()
-       WHERE entity_type = 'fleet' AND entity_name = 'fleet' AND entity_id IS NULL`,
+    await this.pool.query(
+      `INSERT INTO compliance_scores (entity_type, entity_id, entity_name, score, classification, breakdown, calculated_at)
+       VALUES ('fleet', NULL, 'fleet', $1, $2, '{}'::jsonb, NOW())
+       ON CONFLICT (entity_type, entity_name) WHERE entity_id IS NULL DO UPDATE SET
+         score = EXCLUDED.score,
+         classification = EXCLUDED.classification,
+         calculated_at = NOW()`,
       [score, classification]
     );
-    if (updated.rowCount === 0) {
-      await this.pool.query(
-        `INSERT INTO compliance_scores (entity_type, entity_id, entity_name, score, classification, breakdown, calculated_at)
-         VALUES ('fleet', NULL, 'fleet', $1, $2, '{}', NOW())`,
-        [score, classification]
-      );
-    }
   }
 
   private async snapshotHistory(): Promise<void> {

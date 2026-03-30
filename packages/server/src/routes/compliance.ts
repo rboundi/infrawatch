@@ -4,6 +4,8 @@ import type { Logger } from "pino";
 import type { ComplianceScorer } from "../services/compliance-scorer.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_ENTITY_TYPES = new Set(["host", "group", "environment", "fleet"]);
+const VALID_CLASSIFICATIONS = new Set(["excellent", "good", "fair", "poor", "critical"]);
 
 export function createComplianceRoutes(
   pool: pg.Pool,
@@ -62,8 +64,18 @@ export function createComplianceRoutes(
       const groupId = req.query.groupId as string | undefined;
       const environment = req.query.environment as string | undefined;
 
+      if (classificationFilter && !VALID_CLASSIFICATIONS.has(classificationFilter)) {
+        res.status(400).json({ error: "classification must be one of: excellent, good, fair, poor, critical" });
+        return;
+      }
+
       if (groupId && !UUID_RE.test(groupId)) {
         res.status(400).json({ error: "groupId must be a valid UUID" });
+        return;
+      }
+
+      if (environment && environment.length > 100) {
+        res.status(400).json({ error: "environment value too long" });
         return;
       }
 
@@ -159,8 +171,11 @@ export function createComplianceRoutes(
     try {
       const result = await pool.query(
         `SELECT cs.entity_id AS group_id, cs.entity_name AS name, cs.score, cs.classification, cs.calculated_at,
-                (SELECT COUNT(*) FROM host_group_members hgm WHERE hgm.host_group_id = cs.entity_id) AS host_count
+                COALESCE(hgc.cnt, 0) AS host_count
          FROM compliance_scores cs
+         LEFT JOIN (
+           SELECT host_group_id, COUNT(*) AS cnt FROM host_group_members GROUP BY host_group_id
+         ) hgc ON hgc.host_group_id = cs.entity_id
          WHERE cs.entity_type = 'group'
          ORDER BY cs.score ASC`
       );
@@ -206,6 +221,11 @@ export function createComplianceRoutes(
       const entityId = req.query.entityId as string | undefined;
       const days = Math.min(Math.max(parseInt(req.query.days as string) || 90, 1), 365);
 
+      if (!VALID_ENTITY_TYPES.has(entityType)) {
+        res.status(400).json({ error: "entityType must be one of: host, group, environment, fleet" });
+        return;
+      }
+
       if (entityId && !UUID_RE.test(entityId)) {
         res.status(400).json({ error: "entityId must be a valid UUID" });
         return;
@@ -245,7 +265,9 @@ export function createComplianceRoutes(
   router.post("/recalculate", async (_req, res, next) => {
     try {
       // Don't await — kick off in background
-      complianceScorer.calculateAllScores();
+      complianceScorer.calculateAllScores().catch(() => {
+        // errors are already logged inside calculateAllScores
+      });
       res.json({ message: "Compliance score recalculation started" });
     } catch (err) {
       next(err);

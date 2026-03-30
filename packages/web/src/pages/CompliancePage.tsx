@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Shield, RefreshCw, TrendingUp, TrendingDown, Minus, ChevronDown } from "lucide-react";
+import { Shield, RefreshCw, ChevronDown } from "lucide-react";
 import {
   useComplianceFleet,
   useComplianceHosts,
@@ -200,50 +200,60 @@ function TrendChart({ data }: { data: Array<{ date: string; score: number }> }) 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || data.length < 2) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-    const padding = 4;
-    const isDark = document.documentElement.classList.contains("dark");
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    ctx.clearRect(0, 0, w, h);
+      const w = canvas.width;
+      const h = canvas.height;
+      const padding = 4;
+      const isDark = document.documentElement.classList.contains("dark");
 
-    const scores = data.map((d) => d.score);
-    const min = Math.max(Math.min(...scores) - 5, 0);
-    const max = Math.min(Math.max(...scores) + 5, 100);
-    const range = max - min || 1;
+      ctx.clearRect(0, 0, w, h);
 
-    // Draw line
-    ctx.beginPath();
-    ctx.strokeStyle = "#6366f1";
-    ctx.lineWidth = 2;
-    data.forEach((d, i) => {
-      const x = padding + (i / (data.length - 1)) * (w - padding * 2);
-      const y = h - padding - ((d.score - min) / range) * (h - padding * 2);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+      const scores = data.map((d) => d.score);
+      const min = Math.max(Math.min(...scores) - 5, 0);
+      const max = Math.min(Math.max(...scores) + 5, 100);
+      const range = max - min || 1;
 
-    // Fill area
-    const lastX = padding + ((data.length - 1) / (data.length - 1)) * (w - padding * 2);
-    ctx.lineTo(lastX, h - padding);
-    ctx.lineTo(padding, h - padding);
-    ctx.closePath();
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, isDark ? "rgba(99,102,241,0.3)" : "rgba(99,102,241,0.15)");
-    gradient.addColorStop(1, "rgba(99,102,241,0)");
-    ctx.fillStyle = gradient;
-    ctx.fill();
+      // Draw line
+      ctx.beginPath();
+      ctx.strokeStyle = "#6366f1";
+      ctx.lineWidth = 2;
+      data.forEach((d, i) => {
+        const x = padding + (i / (data.length - 1)) * (w - padding * 2);
+        const y = h - padding - ((d.score - min) / range) * (h - padding * 2);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
 
-    // Latest score dot
-    const latestY = h - padding - ((scores[scores.length - 1] - min) / range) * (h - padding * 2);
-    ctx.beginPath();
-    ctx.arc(lastX, latestY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#6366f1";
-    ctx.fill();
+      // Fill area
+      const lastX = padding + ((data.length - 1) / (data.length - 1)) * (w - padding * 2);
+      ctx.lineTo(lastX, h - padding);
+      ctx.lineTo(padding, h - padding);
+      ctx.closePath();
+      const gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, isDark ? "rgba(99,102,241,0.3)" : "rgba(99,102,241,0.15)");
+      gradient.addColorStop(1, "rgba(99,102,241,0)");
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Latest score dot
+      const latestY = h - padding - ((scores[scores.length - 1] - min) / range) * (h - padding * 2);
+      ctx.beginPath();
+      ctx.arc(lastX, latestY, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#6366f1";
+      ctx.fill();
+    };
+
+    draw();
+
+    // Re-draw on dark mode toggle
+    const observer = new MutationObserver(draw);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
   }, [data]);
 
   return <canvas ref={canvasRef} width={400} height={140} className="w-full" style={{ height: 140 }} />;

@@ -26,7 +26,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { TableSkeleton, Skeleton } from "../components/Skeleton";
 import { timeAgo, isOlderThan24h } from "../components/timeago";
-import type { HostDetail, ServiceInfo, ScanLog, ComplianceScoreBreakdown } from "../api/types";
+import type { HostDetail, ServiceInfo, ScanLog } from "../api/types";
 
 type Tab = "packages" | "services" | "dependencies";
 
