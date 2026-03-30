@@ -232,9 +232,25 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
         return;
       }
 
+      const start = performance.now();
+
+      // Network discovery: quick ping scan instead of full nmap scan
+      if (target.type === "network_discovery") {
+        try {
+          const result = await testNetworkDiscovery(target.connectionConfig);
+          const latencyMs = Math.round(performance.now() - start);
+          audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.test_connection", entityType: "scan_target", entityId: id, details: { success: true, latencyMs, ...result }, ipAddress: req.ip ?? null });
+          res.json({ success: true, message: result.message, latencyMs });
+        } catch (scanErr) {
+          const latencyMs = Math.round(performance.now() - start);
+          const message = scanErr instanceof Error ? scanErr.message : "Test failed";
+          res.json({ success: false, message, latencyMs });
+        }
+        return;
+      }
+
       const scanner = createScanner(target.type);
 
-      const start = performance.now();
       try {
         await scanner.scan({
           type: target.type,
@@ -426,6 +442,57 @@ async function runScanAsync(
       "Scan failed"
     );
   }
+}
+
+/**
+ * Quick test for network discovery: validates config, checks nmap is available,
+ * and runs a fast ping scan (-sn) on the first subnet to count reachable hosts.
+ */
+async function testNetworkDiscovery(
+  connectionConfig: Record<string, unknown>,
+): Promise<{ message: string; hostsUp: number }> {
+  const { spawn } = await import("node:child_process");
+  const subnets = connectionConfig.subnets as string[] | undefined;
+
+  if (!subnets || subnets.length === 0) {
+    throw new Error("No subnets configured");
+  }
+
+  // Test nmap availability
+  const nmapVersion = await new Promise<string>((resolve, reject) => {
+    const proc = spawn("nmap", ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    proc.stdout?.on("data", (c: Buffer) => { out += c.toString(); });
+    proc.on("close", (code) => code === 0 ? resolve(out.split("\n")[0] ?? "nmap") : reject(new Error("nmap not found or not executable")));
+    proc.on("error", () => reject(new Error("nmap is not installed")));
+    setTimeout(() => { proc.kill(); reject(new Error("nmap version check timed out")); }, 5000);
+  });
+
+  // Quick ping scan on first subnet (no port scan, just host discovery)
+  const hostsUp = await new Promise<number>((resolve, reject) => {
+    const proc = spawn("nmap", ["-sn", "-T4", "--max-retries", "1", subnets[0]], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    proc.stdout?.on("data", (c: Buffer) => { stdout += c.toString(); });
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error("Ping scan failed"));
+        return;
+      }
+      // Parse "Nmap done: 256 IP addresses (9 hosts up)"
+      const match = stdout.match(/(\d+)\s+hosts?\s+up/);
+      resolve(match ? parseInt(match[1], 10) : 0);
+    });
+    proc.on("error", (err) => reject(new Error(`Failed to run nmap: ${err.message}`)));
+    setTimeout(() => { proc.kill(); reject(new Error("Ping scan timed out (30s)")); }, 30000);
+  });
+
+  const version = nmapVersion.match(/Nmap version ([\d.]+)/)?.[1] ?? "unknown";
+  return {
+    message: `nmap ${version} — ping scan found ${hostsUp} host(s) up on ${subnets[0]}${subnets.length > 1 ? ` (+${subnets.length - 1} more subnet(s))` : ""}`,
+    hostsUp,
+  };
 }
 
 /**
