@@ -2,6 +2,7 @@ import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 import type { ComplianceScorer } from "../services/compliance-scorer.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_ENTITY_TYPES = new Set(["host", "group", "environment", "fleet"]);
@@ -10,7 +11,8 @@ const VALID_CLASSIFICATIONS = new Set(["excellent", "good", "fair", "poor", "cri
 export function createComplianceRoutes(
   pool: pg.Pool,
   _logger: Logger,
-  complianceScorer: ComplianceScorer
+  complianceScorer: ComplianceScorer,
+  audit?: AuditLogger
 ): Router {
   const router = Router();
 
@@ -262,11 +264,20 @@ export function createComplianceRoutes(
   });
 
   // ─── POST /recalculate — Trigger full recalculation ───
-  router.post("/recalculate", async (_req, res, next) => {
+  router.post("/recalculate", async (req, res, next) => {
     try {
       // Don't await — kick off in background
       complianceScorer.calculateAllScores().catch(() => {
         // errors are already logged inside calculateAllScores
+      });
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "compliance.recalculated",
+        entityType: "fleet",
+        entityId: undefined,
+        details: {},
+        ipAddress: req.ip ?? null,
       });
       res.json({ message: "Compliance score recalculation started" });
     } catch (err) {

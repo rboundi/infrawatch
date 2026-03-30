@@ -21,6 +21,9 @@ import { createGroupRoutes } from "./routes/groups.js";
 import { createDependencyRoutes } from "./routes/dependencies.js";
 import { createComplianceRoutes } from "./routes/compliance.js";
 import { createAuthRoutes } from "./routes/auth.js";
+import { createUserRoutes } from "./routes/users.js";
+import { createAuditRoutes } from "./routes/audit.js";
+import { AuditLogger } from "./services/audit-logger.js";
 import { GroupAssignmentService } from "./services/group-assignment.js";
 import { ImpactAnalyzer } from "./services/impact-analyzer.js";
 import { ComplianceScorer } from "./services/compliance-scorer.js";
@@ -172,6 +175,7 @@ const impactAnalyzer = new ImpactAnalyzer(pool);
 const complianceScorer = new ComplianceScorer(pool, logger);
 const userService = new UserService(pool, logger);
 const sessionService = new SessionService(pool, logger);
+const audit = new AuditLogger(pool, logger);
 const requireAuth = createRequireAuth(sessionService);
 
 // Wire notification service into background services
@@ -188,18 +192,20 @@ eolChecker.setNotificationService(notificationService);
 app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionService));
 
 // All remaining routes require authentication
-app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger));
-app.use("/api/v1/hosts", requireAuth, createHostRoutes(pool, logger));
-app.use("/api/v1/alerts", requireAuth, createAlertRoutes(pool, logger));
+app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger, audit));
+app.use("/api/v1/hosts", requireAuth, createHostRoutes(pool, logger, audit));
+app.use("/api/v1/alerts", requireAuth, createAlertRoutes(pool, logger, audit));
 app.use("/api/v1/stats", requireAuth, createStatsRoutes(pool, logger));
-app.use("/api/v1/discovery", requireAuth, createDiscoveryRoutes(pool, logger));
+app.use("/api/v1/discovery", requireAuth, createDiscoveryRoutes(pool, logger, audit));
 app.use("/api/v1/changes", requireAuth, createChangeRoutes(pool, logger));
-app.use("/api/v1/eol", requireAuth, createEolRoutes(pool, logger));
-app.use("/api/v1/reports", requireAuth, createReportRoutes(pool, logger, reportGenerator));
-app.use("/api/v1/notifications", requireAuth, createNotificationRoutes(pool, logger, notificationService));
-app.use("/api/v1/groups", requireAuth, createGroupRoutes(pool, logger, groupAssignment));
-app.use("/api/v1/dependencies", requireAuth, createDependencyRoutes(pool, logger, impactAnalyzer));
-app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, complianceScorer));
+app.use("/api/v1/eol", requireAuth, createEolRoutes(pool, logger, audit));
+app.use("/api/v1/reports", requireAuth, createReportRoutes(pool, logger, reportGenerator, audit));
+app.use("/api/v1/notifications", requireAuth, createNotificationRoutes(pool, logger, notificationService, audit));
+app.use("/api/v1/groups", requireAuth, createGroupRoutes(pool, logger, groupAssignment, audit));
+app.use("/api/v1/dependencies", requireAuth, createDependencyRoutes(pool, logger, impactAnalyzer, audit));
+app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, complianceScorer, audit));
+app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
+app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));

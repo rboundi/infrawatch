@@ -7,8 +7,9 @@ import { validateScanTarget } from "../utils/validation.js";
 import { encrypt, decrypt } from "../utils/crypto.js";
 import { config } from "../config.js";
 import { DataIngestionService } from "../services/data-ingestion.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
-export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
+export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // ─── POST /api/v1/targets ───
@@ -43,6 +44,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
       );
 
       logger.info({ targetId: result.rows[0].id, name, type }, "Scan target created");
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan_target.created", entityType: "scan_target", entityId: result.rows[0].id, details: { name, type }, ipAddress: req.ip ?? null });
       res.status(201).json(formatTarget(result.rows[0]));
     } catch (err) {
       logger.error({ err }, "Failed to create scan target");
@@ -145,6 +147,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
       }
 
       logger.info({ targetId: id }, "Scan target updated");
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan_target.updated", entityType: "scan_target", entityId: id, details: { fields: Object.keys(req.body).filter(k => req.body[k] !== undefined) }, ipAddress: req.ip ?? null });
       res.json(formatTarget(result.rows[0]));
     } catch (err) {
       logger.error({ err }, "Failed to update scan target");
@@ -169,6 +172,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
       }
 
       logger.info({ targetId: id }, "Scan target deleted");
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan_target.deleted", entityType: "scan_target", entityId: id, ipAddress: req.ip ?? null });
       res.status(204).send();
     } catch (err) {
       logger.error({ err }, "Failed to delete scan target");
@@ -196,6 +200,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
         });
         const latencyMs = Math.round(performance.now() - start);
 
+        audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.test_connection", entityType: "scan_target", entityId: id, details: { success: true, latencyMs }, ipAddress: req.ip ?? null });
         res.json({
           success: true,
           message: `Successfully connected to ${target.type} target`,
@@ -248,6 +253,7 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger): Router {
         logger.error({ err, scanLogId }, "Async scan failed unexpectedly");
       });
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.triggered", entityType: "scan_target", entityId: id, details: { scanLogId }, ipAddress: req.ip ?? null });
       res.status(202).json({ message: "Scan started", scanLogId });
     } catch (err) {
       logger.error({ err }, "Failed to trigger scan");

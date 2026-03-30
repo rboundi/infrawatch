@@ -198,7 +198,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
         "Bulk acknowledge completed"
       );
 
-      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "alert.bulk_acknowledged", entityType: "alert", details: { alertIds: ids, count: result.rowCount }, ipAddress: req.ip ?? null });
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "alert.bulk_acknowledged", entityType: "alert", details: { alertIds, count: result.rowCount }, ipAddress: req.ip ?? null });
 
       res.json({
         acknowledged: result.rowCount,

@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
+import type { AuditLogger } from "../services/audit-logger.js";
 
-export function createDiscoveryRoutes(pool: pg.Pool, logger: Logger): Router {
+export function createDiscoveryRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // ─── GET /api/v1/discovery ───
@@ -196,6 +197,21 @@ export function createDiscoveryRoutes(pool: pg.Pool, logger: Logger): Router {
         { discoveryId: id, scanTargetId: created.id },
         "Discovery result promoted to scan target"
       );
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "discovery.promoted",
+        entityType: "discovery_result",
+        entityId: id,
+        details: {
+          scanTargetId: created.id,
+          targetName,
+          type,
+          ipAddress: discovery.ip_address,
+          templateTargetId,
+        },
+        ipAddress: req.ip ?? null,
+      });
 
       res.status(201).json({
         id: created.id,
@@ -227,6 +243,15 @@ export function createDiscoveryRoutes(pool: pg.Pool, logger: Logger): Router {
       }
 
       logger.info({ discoveryId: id }, "Discovery result dismissed");
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "discovery.dismissed",
+        entityType: "discovery_result",
+        entityId: id,
+        details: {},
+        ipAddress: req.ip ?? null,
+      });
       res.status(204).send();
     } catch (err) {
       logger.error({ err }, "Failed to dismiss discovery result");

@@ -226,7 +226,7 @@ export function createReportRoutes(pool: pg.Pool, logger: Logger, reportGenerato
         username: req.user?.username ?? "system",
         action: "report.preview_generated",
         entityType: "report",
-        entityId: null,
+        entityId: undefined,
         details: { reportType, filters: filters ?? {} },
         ipAddress: req.ip ?? null,
       });

@@ -87,7 +87,7 @@ export function createNotificationRoutes(
       );
 
       const r = result.rows[0];
-      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.created", entityType: "notification_channel", entityId: result.rows[0].id, details: { name, type }, ipAddress: req.ip ?? null });
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.created", entityType: "notification_channel", entityId: result.rows[0].id, details: { name, channelType }, ipAddress: req.ip ?? null });
       res.status(201).json({
         id: r.id,
         name: r.name,
