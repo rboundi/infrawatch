@@ -1,16 +1,9 @@
 import type pg from "pg";
 import type { Logger } from "pino";
 import semver from "semver";
-import { config } from "../config.js";
 import { fetchWellKnownVersion, VERSION_SOURCES } from "./version-sources.js";
 import type { NotificationService } from "./notifications/notification-service.js";
-
-interface VersionCheckerOptions {
-  /** How often to run (ms). Default: from config (12 hours) */
-  checkIntervalMs?: number;
-  /** Delay before first run (ms). Default: 60_000 (1 minute) */
-  initialDelayMs?: number;
-}
+import type { SettingsService } from "./settings-service.js";
 
 interface PackageGroup {
   package_name: string;
@@ -31,18 +24,20 @@ export class VersionChecker {
   private startupTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private stopping = false;
-  private checkIntervalMs: number;
-  private initialDelayMs: number;
   private notificationService?: NotificationService;
+  private settings?: SettingsService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger,
-    options?: VersionCheckerOptions
-  ) {
-    this.checkIntervalMs =
-      options?.checkIntervalMs ?? config.versionCheckIntervalHours * 60 * 60 * 1000;
-    this.initialDelayMs = options?.initialDelayMs ?? 60_000;
+  ) {}
+
+  setSettings(settings: SettingsService): void {
+    this.settings = settings;
+  }
+
+  private get checkIntervalMs(): number {
+    return (this.settings?.get<number>("version_check_interval_hours") ?? 12) * 60 * 60 * 1000;
   }
 
   setNotificationService(ns: NotificationService): void {
@@ -52,8 +47,11 @@ export class VersionChecker {
   start(): void {
     if (this.timer || this.startupTimer) return;
 
+    const intervalMs = this.checkIntervalMs;
+    const initialDelayMs = 60_000;
+
     this.logger.info(
-      { checkIntervalMs: this.checkIntervalMs, initialDelayMs: this.initialDelayMs },
+      { checkIntervalMs: intervalMs, initialDelayMs },
       "Version checker scheduled"
     );
 
@@ -62,7 +60,7 @@ export class VersionChecker {
       this.startupTimer = null;
       this.run();
       this.timer = setInterval(() => this.run(), this.checkIntervalMs);
-    }, this.initialDelayMs);
+    }, initialDelayMs);
   }
 
   stop(): void {

@@ -148,20 +148,32 @@ function extractMajorMinor(version: string): string | null {
   return m ? m[1] : null;
 }
 
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const EOL_WINDOW_DAYS = 90;
+import type { SettingsService } from "./settings-service.js";
 
 export class EolChecker {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private changeDetector: ChangeDetector;
   private notificationService?: NotificationService;
+  private settings?: SettingsService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger
   ) {
     this.changeDetector = new ChangeDetector(pool, logger);
+  }
+
+  setSettings(settings: SettingsService): void {
+    this.settings = settings;
+  }
+
+  private get eolWindowDays(): number {
+    return this.settings?.get<number>("eol_warning_days") ?? 90;
+  }
+
+  private get eolCheckEnabled(): boolean {
+    return this.settings?.get<boolean>("eol_check_enabled") ?? true;
   }
 
   setNotificationService(ns: NotificationService): void {
@@ -216,7 +228,7 @@ export class EolChecker {
     this.logger.info("EOL checker starting");
     // Run after a short delay to let migrations finish
     setTimeout(() => this.check(), 5000);
-    this.timer = setInterval(() => this.check(), CHECK_INTERVAL_MS);
+    this.timer = setInterval(() => this.check(), 24 * 60 * 60 * 1000);
   }
 
   stop(): void {
@@ -228,6 +240,10 @@ export class EolChecker {
   }
 
   async check(): Promise<void> {
+    if (!this.eolCheckEnabled) {
+      this.logger.debug("EOL check disabled via settings");
+      return;
+    }
     if (this.running) {
       this.logger.debug("EOL check already running, skipping");
       return;
@@ -307,7 +323,7 @@ export class EolChecker {
       }
 
       const now = new Date();
-      const windowDate = new Date(now.getTime() + EOL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+      const windowDate = new Date(now.getTime() + this.eolWindowDays * 24 * 60 * 60 * 1000);
       let alertsCreated = 0;
       let alertsResolved = 0;
 

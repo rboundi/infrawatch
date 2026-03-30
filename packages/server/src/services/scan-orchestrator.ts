@@ -7,35 +7,34 @@ import { DataIngestionService } from "./data-ingestion.js";
 import type { NotificationService } from "./notifications/notification-service.js";
 import type { GroupAssignmentService } from "./group-assignment.js";
 import type { ComplianceScorer } from "./compliance-scorer.js";
-
-interface OrchestratorOptions {
-  /** How often to check for targets due for scanning (ms). Default: 5 minutes */
-  checkIntervalMs?: number;
-  /** Max time allowed per scan target (ms). Default: 5 minutes */
-  scanTimeoutMs?: number;
-}
-
-const DEFAULT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const DEFAULT_SCAN_TIMEOUT_MS = 5 * 60 * 1000;
+import type { SettingsService } from "./settings-service.js";
 
 export class ScanOrchestrator {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private stopping = false;
-  private checkIntervalMs: number;
-  private scanTimeoutMs: number;
   private ingestion: DataIngestionService;
   private notificationService?: NotificationService;
   private complianceScorer?: ComplianceScorer;
+  private settings?: SettingsService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger,
-    options?: OrchestratorOptions
   ) {
-    this.checkIntervalMs = options?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
-    this.scanTimeoutMs = options?.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS;
     this.ingestion = new DataIngestionService(pool, logger);
+  }
+
+  setSettings(settings: SettingsService): void {
+    this.settings = settings;
+  }
+
+  private get checkIntervalMs(): number {
+    return (this.settings?.get<number>("scan_check_interval_minutes") ?? 5) * 60 * 1000;
+  }
+
+  private get scanTimeoutMs(): number {
+    return (this.settings?.get<number>("scan_timeout_minutes") ?? 5) * 60 * 1000;
   }
 
   setGroupAssignment(service: GroupAssignmentService): void {

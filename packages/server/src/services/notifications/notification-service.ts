@@ -7,13 +7,9 @@ import { formatTeamsMessage } from "./formatters/ms-teams-formatter.js";
 import { formatSlackMessage } from "./formatters/slack-formatter.js";
 import { formatGenericWebhookMessage } from "./formatters/generic-webhook-formatter.js";
 
+import type { SettingsService } from "../settings-service.js";
+
 const SEVERITY_ORDER = ["info", "low", "medium", "high", "critical"];
-
-/** Min interval between messages to the same channel (ms) */
-const RATE_LIMIT_MS = 5_000;
-
-/** Dedup window: same alert+host+channel within this time is skipped */
-const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 interface QueueEntry {
   channel: NotificationChannel;
@@ -28,12 +24,25 @@ export class NotificationService {
   private lastSentAt = new Map<string, number>(); // channelId -> timestamp
   private recentKeys = new Map<string, number>(); // dedup key -> timestamp
   private dashboardUrl: string;
+  private settings?: SettingsService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger
   ) {
     this.dashboardUrl = config.corsOrigin.replace(/\/$/, "");
+  }
+
+  setSettings(settings: SettingsService): void {
+    this.settings = settings;
+  }
+
+  private get rateLimitMs(): number {
+    return (this.settings?.get<number>("notification_rate_limit_seconds") ?? 5) * 1000;
+  }
+
+  private get dedupWindowMs(): number {
+    return (this.settings?.get<number>("notification_dedup_hours") ?? 1) * 60 * 60 * 1000;
   }
 
   start(): void {
@@ -90,7 +99,7 @@ export class NotificationService {
 
     const dedupKey = this.dedupKey(channel.id, event);
     const lastSent = this.recentKeys.get(dedupKey);
-    if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
+    if (lastSent && Date.now() - lastSent < this.dedupWindowMs) {
       this.logger.debug(
         { channelId: channel.id, eventType: event.eventType },
         "Skipping duplicate notification"
@@ -193,7 +202,7 @@ export class NotificationService {
 
       for (const entry of this.queue) {
         const lastTime = this.lastSentAt.get(entry.channel.id) ?? 0;
-        if (now - lastTime < RATE_LIMIT_MS) {
+        if (now - lastTime < this.rateLimitMs) {
           remaining.push(entry); // rate limited, keep in queue
           continue;
         }
@@ -409,7 +418,7 @@ export class NotificationService {
   }
 
   private cleanDedupCache(): void {
-    const cutoff = Date.now() - DEDUP_WINDOW_MS;
+    const cutoff = Date.now() - this.dedupWindowMs;
     for (const [key, ts] of this.recentKeys) {
       if (ts < cutoff) this.recentKeys.delete(key);
     }

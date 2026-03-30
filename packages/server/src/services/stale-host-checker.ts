@@ -2,32 +2,27 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import { ChangeDetector } from "./change-detector.js";
 import type { NotificationService } from "./notifications/notification-service.js";
-
-interface StaleHostCheckerOptions {
-  /** How often to check for stale hosts (ms). Default: 1 hour */
-  checkIntervalMs?: number;
-  /** Hosts not seen for longer than this are marked stale (hours). Default: 24 */
-  staleThresholdHours?: number;
-}
-
-const DEFAULT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const DEFAULT_STALE_THRESHOLD_HOURS = 24;
+import type { SettingsService } from "./settings-service.js";
 
 export class StaleHostChecker {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private checkIntervalMs: number;
-  private staleThresholdHours: number;
   private changeDetector: ChangeDetector;
   private notificationService?: NotificationService;
+  private settings?: SettingsService;
 
   constructor(
     private pool: pg.Pool,
     private logger: Logger,
-    options?: StaleHostCheckerOptions
   ) {
-    this.checkIntervalMs = options?.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
-    this.staleThresholdHours = options?.staleThresholdHours ?? DEFAULT_STALE_THRESHOLD_HOURS;
     this.changeDetector = new ChangeDetector(pool, logger);
+  }
+
+  setSettings(settings: SettingsService): void {
+    this.settings = settings;
+  }
+
+  private get staleThresholdHours(): number {
+    return this.settings?.get<number>("stale_host_threshold_hours") ?? 24;
   }
 
   setNotificationService(ns: NotificationService): void {
@@ -37,14 +32,15 @@ export class StaleHostChecker {
   start(): void {
     if (this.timer) return;
 
+    const intervalMs = 60 * 60 * 1000; // check hourly
     this.logger.info(
-      { checkIntervalMs: this.checkIntervalMs, staleThresholdHours: this.staleThresholdHours },
+      { checkIntervalMs: intervalMs, staleThresholdHours: this.staleThresholdHours },
       "Stale host checker starting"
     );
 
     // Run immediately, then on interval
     this.check();
-    this.timer = setInterval(() => this.check(), this.checkIntervalMs);
+    this.timer = setInterval(() => this.check(), intervalMs);
   }
 
   stop(): void {

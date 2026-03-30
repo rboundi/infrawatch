@@ -23,7 +23,10 @@ import { createComplianceRoutes } from "./routes/compliance.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { createUserRoutes } from "./routes/users.js";
 import { createAuditRoutes } from "./routes/audit.js";
+import { createSettingsRoutes } from "./routes/settings.js";
 import { AuditLogger } from "./services/audit-logger.js";
+import { SettingsService } from "./services/settings-service.js";
+import { MaintenanceService } from "./services/maintenance-service.js";
 import { GroupAssignmentService } from "./services/group-assignment.js";
 import { ImpactAnalyzer } from "./services/impact-analyzer.js";
 import { ComplianceScorer } from "./services/compliance-scorer.js";
@@ -173,10 +176,19 @@ const notificationService = new NotificationService(pool, logger);
 const groupAssignment = new GroupAssignmentService(pool, logger);
 const impactAnalyzer = new ImpactAnalyzer(pool);
 const complianceScorer = new ComplianceScorer(pool, logger);
-const userService = new UserService(pool, logger);
-const sessionService = new SessionService(pool, logger);
+const settingsService = new SettingsService(pool, logger);
+const userService = new UserService(pool, logger, settingsService);
+const sessionService = new SessionService(pool, logger, settingsService);
 const audit = new AuditLogger(pool, logger);
+const maintenance = new MaintenanceService(pool, logger, settingsService);
 const requireAuth = createRequireAuth(sessionService);
+
+// Wire settings into background services
+orchestrator.setSettings(settingsService);
+staleChecker.setSettings(settingsService);
+versionChecker.setSettings(settingsService);
+eolChecker.setSettings(settingsService);
+notificationService.setSettings(settingsService);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
@@ -189,7 +201,7 @@ eolChecker.setNotificationService(notificationService);
 // ─── Routes ───
 
 // Auth routes (login is public, others require auth — handled inside the router)
-app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionService));
+app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionService, settingsService));
 
 // All remaining routes require authentication
 app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger, audit));
@@ -206,6 +218,7 @@ app.use("/api/v1/dependencies", requireAuth, createDependencyRoutes(pool, logger
 app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, complianceScorer, audit));
 app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
 app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
+app.use("/api/v1/settings", requireAuth, createSettingsRoutes(pool, logger, settingsService, audit));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
@@ -216,6 +229,13 @@ async function start() {
   } catch (err) {
     logger.fatal({ err }, "Failed to run migrations, shutting down");
     process.exit(1);
+  }
+
+  // Seed and load settings
+  try {
+    await settingsService.seed();
+  } catch (err) {
+    logger.error({ err }, "Failed to seed/load settings");
   }
 
   // Seed default admin user if no users exist
@@ -247,6 +267,9 @@ async function start() {
 
   // Start compliance scorer
   complianceScorer.start();
+
+  // Start maintenance service (daily at 3 AM)
+  maintenance.start();
 
   // Daily digest at configured hour (default 8 AM)
   const scheduleDigest = () => {
@@ -298,6 +321,7 @@ async function start() {
     reportGenerator.stop();
     notificationService.stop();
     complianceScorer.stop();
+    maintenance.stop();
     clearInterval(snapshotTimer);
     clearInterval(sessionCleanupTimer);
     logger.info("Background services stopped");
