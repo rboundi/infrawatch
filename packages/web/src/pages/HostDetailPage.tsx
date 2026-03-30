@@ -18,16 +18,28 @@ import {
   X,
   Network,
   AlertTriangle,
+  Shield,
 } from "lucide-react";
-import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation, useCreateHostTag, useDeleteHostTag, useHostConnections, useImpactAnalysis } from "../api/hooks";
+import { useHost, useHostPackages, useHostHistory, useEolAlerts, useHostRemediation, useCreateHostTag, useDeleteHostTag, useHostConnections, useImpactAnalysis, useComplianceHostDetail } from "../api/hooks";
 import { HostRemediationPanel } from "../components/RemediationPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { TableSkeleton, Skeleton } from "../components/Skeleton";
 import { timeAgo, isOlderThan24h } from "../components/timeago";
-import type { HostDetail, ServiceInfo, ScanLog } from "../api/types";
+import type { HostDetail, ServiceInfo, ScanLog, ComplianceScoreBreakdown } from "../api/types";
 
 type Tab = "packages" | "services" | "dependencies";
+
+const SCORE_COLORS: Record<string, string> = {
+  excellent: "#22c55e", good: "#3b82f6", fair: "#eab308", poor: "#f97316", critical: "#ef4444",
+};
+const CLASS_BADGE: Record<string, string> = {
+  excellent: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  good: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  fair: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+  poor: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  critical: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
 
 export function HostDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +61,7 @@ export function HostDetailPage() {
 
   return (
     <div className="space-y-6">
-      <HostHeader host={host} />
+      <HostHeader host={host} hostId={id!} />
 
       {/* Remediation Plan button */}
       {hasOpenAlerts && (
@@ -109,7 +121,9 @@ export function HostDetailPage() {
 
 // ─── Header ───
 
-function HostHeader({ host }: { host: HostDetail }) {
+function HostHeader({ host, hostId }: { host: HostDetail; hostId: string }) {
+  const compliance = useComplianceHostDetail(hostId);
+
   return (
     <div>
       <Link
@@ -129,6 +143,12 @@ function HostHeader({ host }: { host: HostDetail }) {
                 {host.hostname}
               </h2>
               <StatusBadge status={host.status} />
+              {compliance.data && (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${CLASS_BADGE[compliance.data.classification] ?? CLASS_BADGE.critical}`}>
+                  <Shield className="h-3 w-3" />
+                  {compliance.data.score}
+                </span>
+              )}
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">

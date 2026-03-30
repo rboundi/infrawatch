@@ -7,8 +7,9 @@ import {
   Check,
   GitCommitHorizontal,
   Hourglass,
+  Shield,
 } from "lucide-react";
-import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges, useEolAlertsSummary } from "../api/hooks";
+import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges, useEolAlertsSummary, useComplianceFleet } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { CardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
@@ -26,6 +27,7 @@ export function OverviewPage() {
   const ackMutation = useAcknowledgeAlert();
   const recentChanges = useChanges({ limit: 8, page: 1 });
   const eolSummary = useEolAlertsSummary();
+  const compliance = useComplianceFleet();
 
   const handleAck = (alert: Alert) => {
     ackMutation.mutate({ id: alert.id });
@@ -84,6 +86,65 @@ export function OverviewPage() {
           />
         </div>
       ) : null}
+
+      {/* Fleet Compliance Score */}
+      {compliance.data && (
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4"
+                style={{
+                  borderColor: compliance.data.score >= 90 ? "#22c55e" :
+                    compliance.data.score >= 70 ? "#3b82f6" :
+                    compliance.data.score >= 50 ? "#eab308" :
+                    compliance.data.score >= 30 ? "#f97316" : "#ef4444",
+                }}
+              >
+                <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {compliance.data.score}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Fleet Compliance Score
+                </p>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                  compliance.data.classification === "excellent" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                  compliance.data.classification === "good" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                  compliance.data.classification === "fair" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                  compliance.data.classification === "poor" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                  "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                }`}>
+                  {compliance.data.classification}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                {(["excellent", "good", "fair", "poor", "critical"] as const).map((c) => {
+                  const count = compliance.data!.hostDistribution[c];
+                  if (count === 0) return null;
+                  const colors: Record<string, string> = {
+                    excellent: "#22c55e", good: "#3b82f6", fair: "#eab308", poor: "#f97316", critical: "#ef4444",
+                  };
+                  return (
+                    <div key={c} className="text-center">
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{count}</p>
+                      <div className="h-1.5 w-8 rounded-full mt-0.5" style={{ backgroundColor: colors[c] }} />
+                    </div>
+                  );
+                })}
+              </div>
+              <a
+                href="/compliance"
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+              >
+                View details
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stale hosts warning */}
       {stats.data && stats.data.staleHosts > 0 && (

@@ -15,6 +15,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
+import { CompliancePage } from "./pages/CompliancePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="groups" element={<GroupsPage />} />
             <Route path="groups/:id" element={<GroupDetailPage />} />
             <Route path="dependencies" element={<DependenciesPage />} />
+            <Route path="compliance" element={<CompliancePage />} />
             <Route path="discovery" element={<DiscoveryPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="eol" element={<EolPage />} />

@@ -542,6 +542,62 @@ export function useDeleteHostTag() {
   });
 }
 
+// ─── Compliance ───
+
+export function useComplianceFleet() {
+  return useQuery({
+    queryKey: ["compliance", "fleet"],
+    queryFn: () => get<import("./types").ComplianceFleetData>("/compliance/fleet"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useComplianceHosts(params: import("./types").ComplianceHostsParams = {}) {
+  return useQuery({
+    queryKey: ["compliance", "hosts", params],
+    queryFn: () =>
+      get<PaginatedResponse<import("./types").ComplianceHostScore>>("/compliance/hosts", params as Record<string, unknown>),
+  });
+}
+
+export function useComplianceHostDetail(hostId: string | null) {
+  return useQuery({
+    queryKey: ["compliance", "hosts", hostId],
+    queryFn: () => get<import("./types").ComplianceHostScore>(`/compliance/hosts/${hostId}`),
+    enabled: !!hostId,
+  });
+}
+
+export function useComplianceGroups() {
+  return useQuery({
+    queryKey: ["compliance", "groups"],
+    queryFn: () => get<import("./types").ComplianceGroupScore[]>("/compliance/groups"),
+  });
+}
+
+export function useComplianceEnvironments() {
+  return useQuery({
+    queryKey: ["compliance", "environments"],
+    queryFn: () => get<import("./types").ComplianceEnvironmentScore[]>("/compliance/environments"),
+  });
+}
+
+export function useComplianceTrend(params: { entityType?: string; entityId?: string; days?: number } = {}) {
+  return useQuery({
+    queryKey: ["compliance", "trend", params],
+    queryFn: () =>
+      get<import("./types").ComplianceTrendPoint[]>("/compliance/trend", params as Record<string, unknown>),
+  });
+}
+
+export function useRecalculateCompliance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => post<{ message: string }>("/compliance/recalculate"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["compliance"] }); },
+  });
+}
+
 // ─── Dependencies ───
 
 export function useHostConnections(params: { hostId?: string; direction?: string; limit?: number; offset?: number } = {}) {

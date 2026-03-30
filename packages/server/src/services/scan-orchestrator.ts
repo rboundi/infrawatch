@@ -6,6 +6,7 @@ import { config } from "../config.js";
 import { DataIngestionService } from "./data-ingestion.js";
 import type { NotificationService } from "./notifications/notification-service.js";
 import type { GroupAssignmentService } from "./group-assignment.js";
+import type { ComplianceScorer } from "./compliance-scorer.js";
 
 interface OrchestratorOptions {
   /** How often to check for targets due for scanning (ms). Default: 5 minutes */
@@ -25,6 +26,7 @@ export class ScanOrchestrator {
   private scanTimeoutMs: number;
   private ingestion: DataIngestionService;
   private notificationService?: NotificationService;
+  private complianceScorer?: ComplianceScorer;
 
   constructor(
     private pool: pg.Pool,
@@ -42,6 +44,10 @@ export class ScanOrchestrator {
 
   setNotificationService(ns: NotificationService): void {
     this.notificationService = ns;
+  }
+
+  setComplianceScorer(scorer: ComplianceScorer): void {
+    this.complianceScorer = scorer;
   }
 
   /**
@@ -200,6 +206,17 @@ export class ScanOrchestrator {
          WHERE id = $1`,
         [target.id]
       );
+
+      // Recalculate compliance scores for scanned hosts
+      if (this.complianceScorer && hostsUpserted > 0) {
+        const hostIds = await this.pool.query<{ id: string }>(
+          `SELECT id FROM hosts WHERE scan_target_id = $1`,
+          [target.id]
+        );
+        for (const row of hostIds.rows) {
+          this.complianceScorer.recalculateHost(row.id).catch(() => {});
+        }
+      }
 
       const durationMs = Date.now() - startTime;
       this.logger.info(

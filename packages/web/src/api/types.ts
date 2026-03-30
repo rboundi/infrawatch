@@ -487,6 +487,63 @@ export interface HostGroupDetail extends HostGroup {
   channels: Array<{ id: string; name: string }>;
 }
 
+// ─── Compliance types ───
+
+export interface ComplianceScoreBreakdown {
+  packageCurrency: { score: number; maxScore: number; upToDate: number; total: number };
+  eolStatus: { score: number; maxScore: number; activeEolAlerts: number; worstEolDays: number | null };
+  alertResolution: { score: number; maxScore: number; acknowledged: number; total: number };
+  scanFreshness: { score: number; maxScore: number; lastSeenAt: string | null };
+  serviceHealth: { score: number; maxScore: number; running: number; total: number };
+}
+
+export interface ComplianceHostScore {
+  hostId: string;
+  hostname: string;
+  score: number;
+  classification: "excellent" | "good" | "fair" | "poor" | "critical";
+  breakdown: ComplianceScoreBreakdown;
+  calculatedAt: string;
+}
+
+export interface ComplianceFleetData {
+  score: number;
+  classification: string;
+  calculatedAt: string | null;
+  trend: Array<{ date: string; score: number }>;
+  hostDistribution: { excellent: number; good: number; fair: number; poor: number; critical: number };
+}
+
+export interface ComplianceGroupScore {
+  groupId: string;
+  name: string;
+  score: number;
+  classification: string;
+  hostCount: number;
+  calculatedAt: string;
+}
+
+export interface ComplianceEnvironmentScore {
+  name: string;
+  score: number;
+  classification: string;
+  calculatedAt: string;
+}
+
+export interface ComplianceTrendPoint {
+  date: string;
+  score: number;
+  classification: string;
+}
+
+export interface ComplianceHostsParams {
+  classification?: string;
+  groupId?: string;
+  environment?: string;
+  page?: number;
+  limit?: number;
+}
+
 // ─── Dependency types ───
 
 export interface HostConnection {

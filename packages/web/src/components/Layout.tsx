@@ -13,6 +13,7 @@ import {
   BellRing,
   Layers,
   Network,
+  Shield,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 
@@ -22,6 +23,7 @@ const nav = [
   { to: "/hosts", label: "Hosts", icon: Server },
   { to: "/groups", label: "Groups", icon: Layers },
   { to: "/dependencies", label: "Dependencies", icon: Network },
+  { to: "/compliance", label: "Compliance", icon: Shield },
   { to: "/discovery", label: "Discovery", icon: Scan },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
