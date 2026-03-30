@@ -23,6 +23,9 @@ import { GroupsPage } from "./pages/GroupsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { CompliancePage } from "./pages/CompliancePage";
+import { UsersPage } from "./pages/admin/UsersPage";
+import { SettingsPage } from "./pages/admin/SettingsPage";
+import { AuditLogPage } from "./pages/admin/AuditLogPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -81,9 +84,9 @@ export default function App() {
                 <Route path="profile/sessions" element={<SessionsPage />} />
 
                 {/* Admin-only routes */}
-                <Route path="admin/users" element={<RequireAdmin><div className="text-gray-500">Users management — coming soon</div></RequireAdmin>} />
-                <Route path="admin/settings" element={<RequireAdmin><div className="text-gray-500">System settings — coming soon</div></RequireAdmin>} />
-                <Route path="admin/audit-log" element={<RequireAdmin><div className="text-gray-500">Audit log — coming soon</div></RequireAdmin>} />
+                <Route path="admin/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
+                <Route path="admin/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+                <Route path="admin/audit-log" element={<RequireAdmin><AuditLogPage /></RequireAdmin>} />
               </Route>
             </Routes>
           </ToastProvider>
