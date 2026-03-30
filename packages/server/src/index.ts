@@ -32,6 +32,7 @@ import { ChangeDetector } from "./services/change-detector.js";
 import { EolChecker } from "./services/eol-checker.js";
 import { ReportGenerator } from "./services/reports/report-generator.js";
 import { NotificationService } from "./services/notifications/notification-service.js";
+import { UserService } from "./services/user-service.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -165,6 +166,7 @@ const notificationService = new NotificationService(pool, logger);
 const groupAssignment = new GroupAssignmentService(pool, logger);
 const impactAnalyzer = new ImpactAnalyzer(pool);
 const complianceScorer = new ComplianceScorer(pool, logger);
+const userService = new UserService(pool, logger);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
@@ -197,6 +199,13 @@ async function start() {
   } catch (err) {
     logger.fatal({ err }, "Failed to run migrations, shutting down");
     process.exit(1);
+  }
+
+  // Seed default admin user if no users exist
+  try {
+    await userService.ensureDefaultAdmin();
+  } catch (err) {
+    logger.error({ err }, "Failed to seed default admin user");
   }
 
   const server = app.listen(config.port, () => {
