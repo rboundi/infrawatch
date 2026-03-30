@@ -6,6 +6,10 @@ import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function escapeIlike(str: string): string {
+  return str.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
@@ -45,7 +49,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
       }
       if (search) {
         conditions.push(`h.hostname ILIKE $${paramIdx++}`);
-        values.push(`%${search}%`);
+        values.push(`%${escapeIlike(search)}%`);
       }
       if (discoveryMethod) {
         conditions.push(`h.discovery_method = $${paramIdx++}`);
@@ -235,7 +239,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
 
       if (search) {
         conditions.push(`dp.package_name ILIKE $${paramIdx++}`);
-        values.push(`%${search}%`);
+        values.push(`%${escapeIlike(search)}%`);
       }
       if (ecosystem) {
         conditions.push(`dp.ecosystem = $${paramIdx++}`);
