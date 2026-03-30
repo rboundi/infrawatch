@@ -91,14 +91,16 @@ export function TargetFormPage() {
           setEnvironmentTag(cfg.environmentTag as string);
         }
       }
-      // Set flag after a microtask so the type-change effect sees it as false
-      queueMicrotask(() => { initialLoadDone.current = true; });
     }
   }, [existingTarget]);
 
   // Reset config when type changes (skip during initial edit load)
+  // The flag is set to true HERE after skipping, guaranteeing correct render-cycle ordering.
   useEffect(() => {
-    if (!initialLoadDone.current) return;
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      return;
+    }
     setConfig({});
     setErrors({});
     setTestResult(null);

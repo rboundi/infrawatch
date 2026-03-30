@@ -34,7 +34,9 @@ services:
       - "3002:3001"
 
   web:
-    build: packages/web
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
     depends_on:
       - api
     environment:

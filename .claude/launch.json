@@ -4,7 +4,7 @@
     {
       "name": "PostgreSQL",
       "runtimeExecutable": "docker",
-      "runtimeArgs": ["compose", "up", "postgres", "-d"],
+      "runtimeArgs": ["compose", "up", "postgres"],
       "port": 5433,
       "autoPort": false
     },
