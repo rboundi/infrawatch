@@ -136,7 +136,26 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
         res.status(500).json({ error: "MASTER_KEY not configured on server" });
         return;
       }
-      const encryptedConfig = encrypt(connectionConfig, config.masterKey);
+
+      // Merge with existing config to preserve fields not sent (e.g. passwords)
+      let mergedConfig = connectionConfig;
+      try {
+        const existing = await pool.query(
+          `SELECT connection_config FROM scan_targets WHERE id = $1`,
+          [id],
+        );
+        if (existing.rows.length > 0 && existing.rows[0].connection_config) {
+          const existingConfig = decrypt(
+            existing.rows[0].connection_config as string,
+            config.masterKey,
+          ) as Record<string, unknown>;
+          mergedConfig = { ...existingConfig, ...connectionConfig };
+        }
+      } catch {
+        // If decrypt fails, just use the new config as-is
+      }
+
+      const encryptedConfig = encrypt(mergedConfig, config.masterKey);
       sets.push(`connection_config = $${paramIdx++}`);
       values.push(JSON.stringify(encryptedConfig));
     }

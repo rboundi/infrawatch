@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Zap, Loader2, CheckCircle2, XCircle, Save } from "lucide-react";
 import {
@@ -50,7 +50,7 @@ export function TargetFormPage() {
   const [environmentTag, setEnvironmentTag] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<FormErrors>({});
-  const [initialLoadDone, setInitialLoadDone] = useState(!isEdit);
+  const initialLoadDone = useRef(!isEdit);
 
   // Test state
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
@@ -62,22 +62,43 @@ export function TargetFormPage() {
   // Populate form for edit mode
   useEffect(() => {
     if (existingTarget) {
+      initialLoadDone.current = false; // Guard: prevent type-change effect from clearing config
       setName(existingTarget.name);
       setType(existingTarget.type);
       setScanIntervalHours(existingTarget.scanIntervalHours);
       if (existingTarget.connectionConfig) {
-        setConfig(existingTarget.connectionConfig);
-        if (existingTarget.connectionConfig.environmentTag) {
-          setEnvironmentTag(existingTarget.connectionConfig.environmentTag as string);
+        const cfg = { ...existingTarget.connectionConfig };
+
+        // Convert array subnets back to newline-separated string for textarea
+        if (Array.isArray(cfg.subnets)) {
+          cfg.subnets = (cfg.subnets as string[]).join("\n");
+        }
+        // Convert array excludeHosts back to string
+        if (Array.isArray(cfg.excludeHosts)) {
+          cfg.excludeHosts = (cfg.excludeHosts as string[]).join("\n");
+        }
+
+        // Clear redacted placeholder values so fields show as empty (user re-enters if needed)
+        const redacted = "••••••••";
+        for (const key of ["password", "privateKey", "secretAccessKey", "token"]) {
+          if (cfg[key] === redacted) {
+            cfg[key] = "";
+          }
+        }
+
+        setConfig(cfg);
+        if (cfg.environmentTag) {
+          setEnvironmentTag(cfg.environmentTag as string);
         }
       }
-      setInitialLoadDone(true);
+      // Set flag after a microtask so the type-change effect sees it as false
+      queueMicrotask(() => { initialLoadDone.current = true; });
     }
   }, [existingTarget]);
 
   // Reset config when type changes (skip during initial edit load)
   useEffect(() => {
-    if (!initialLoadDone) return;
+    if (!initialLoadDone.current) return;
     setConfig({});
     setErrors({});
     setTestResult(null);
@@ -102,13 +123,15 @@ export function TargetFormPage() {
       case "ssh_linux":
         if (!config.host) errs.host = "Host is required";
         if (!config.username) errs.username = "Username is required";
-        if (config.authMethod === "password" && !config.password) errs.password = "Password is required";
-        if (config.authMethod === "privateKey" && !config.privateKey) errs.privateKey = "Private key is required";
+        if (!isEdit) {
+          if (config.authMethod === "password" && !config.password) errs.password = "Password is required";
+          if (config.authMethod === "privateKey" && !config.privateKey) errs.privateKey = "Private key is required";
+        }
         break;
       case "winrm":
         if (!config.host) errs.host = "Host is required";
         if (!config.username) errs.username = "Username is required";
-        if (!config.password) errs.password = "Password is required";
+        if (!isEdit && !config.password) errs.password = "Password is required";
         break;
       case "kubernetes":
         if (config.method === "kubeconfig" && !config.kubeconfig) errs.kubeconfig = "Kubeconfig is required";
@@ -116,12 +139,12 @@ export function TargetFormPage() {
       case "aws":
         if (!config.regions || (config.regions as string[]).length === 0) errs.regions = "At least one region is required";
         if (config.authMethod === "keys" && !config.accessKeyId) errs.accessKeyId = "Access Key ID is required";
-        if (config.authMethod === "keys" && !config.secretAccessKey) errs.secretAccessKey = "Secret Access Key is required";
+        if (!isEdit && config.authMethod === "keys" && !config.secretAccessKey) errs.secretAccessKey = "Secret Access Key is required";
         break;
       case "vmware":
         if (!config.host) errs.host = "vCenter host is required";
         if (!config.username) errs.username = "Username is required";
-        if (!config.password) errs.password = "Password is required";
+        if (!isEdit && !config.password) errs.password = "Password is required";
         break;
       case "docker":
         if (!config.host && !config.socketPath) errs.host = "Host or socket path is required";
@@ -148,8 +171,21 @@ export function TargetFormPage() {
         .map((s: string) => s.trim())
         .filter(Boolean);
     }
+    if (type === "network_discovery" && typeof connectionConfig.excludeHosts === "string") {
+      const val = (connectionConfig.excludeHosts as string).trim();
+      connectionConfig.excludeHosts = val ? val.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+    }
     if (environmentTag.trim()) {
       connectionConfig.environmentTag = environmentTag.trim();
+    }
+
+    // On edit, remove empty sensitive fields so the backend preserves existing values
+    if (isEdit) {
+      for (const key of ["password", "privateKey", "secretAccessKey", "token"]) {
+        if (connectionConfig[key] === "" || connectionConfig[key] === undefined) {
+          delete connectionConfig[key];
+        }
+      }
     }
 
     if (isEdit && id) {
