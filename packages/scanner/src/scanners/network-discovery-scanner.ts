@@ -132,6 +132,9 @@ export function buildNmapArgs(config: NetworkDiscoveryConfig, useSudo: boolean):
     args.push("--min-rate", "100");
   }
 
+  // Progress reporting
+  args.push("--stats-every", "15s");
+
   // Targets
   args.push(...config.subnets);
 
@@ -463,20 +466,72 @@ export function detectPlatform(host: NmapHost): string {
   return "unknown";
 }
 
+// ─── Progress parsing ───
+
+/**
+ * Parse nmap stderr output for human-readable progress messages.
+ * Nmap --stats-every outputs lines like:
+ *   "Stats: 0:01:23 elapsed; 5 hosts completed (3 up), 2 undergoing SYN Stealth Scan"
+ *   "SYN Stealth Scan Timing: About 45.00% done; ETC: 21:55 (0:01:30 remaining)"
+ * Nmap also outputs per-host completion:
+ *   "Nmap scan report for 192.168.1.1"
+ */
+export function parseNmapProgress(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // Stats line: "Stats: 0:01:23 elapsed; 5 hosts completed (3 up), ..."
+  const statsMatch = trimmed.match(
+    /^Stats:\s+([\d:]+)\s+elapsed;\s+(\d+)\s+hosts?\s+completed\s+\((\d+)\s+up\)/
+  );
+  if (statsMatch) {
+    return `${statsMatch[1]} elapsed — ${statsMatch[2]} host(s) scanned, ${statsMatch[3]} up`;
+  }
+
+  // Timing/progress line: "... About 45.00% done; ETC: 21:55 (0:01:30 remaining)"
+  const pctMatch = trimmed.match(
+    /About\s+([\d.]+)%\s+done.*?\(([\d:]+)\s+remaining\)/
+  );
+  if (pctMatch) {
+    return `${parseFloat(pctMatch[1]).toFixed(0)}% complete — ${pctMatch[2]} remaining`;
+  }
+
+  // Discovered host: "Discovered open port 22/tcp on 192.168.1.1"
+  const portMatch = trimmed.match(
+    /^Discovered open port (\d+\/\w+) on ([\d.]+)/
+  );
+  if (portMatch) {
+    return `Found open port ${portMatch[1]} on ${portMatch[2]}`;
+  }
+
+  // Completed host: "Completed ... Scan against 192.168.1.1"
+  const completedMatch = trimmed.match(
+    /^Completed\s+(.+?)\s+against\s+([\d.]+)/
+  );
+  if (completedMatch) {
+    return `Completed ${completedMatch[1]} on ${completedMatch[2]}`;
+  }
+
+  return null;
+}
+
 // ─── Scanner class ───
 
 export class NetworkDiscoveryScanner extends BaseScanner {
   async scan(config: ScanTargetConfig): Promise<ScanResult> {
     const discoveryConfig = config.connectionConfig as unknown as NetworkDiscoveryConfig;
+    const onProgress = config.onProgress;
 
     // Validate subnets
     validateSubnets(discoveryConfig.subnets);
 
     // Determine if we should use sudo
     const useSudo = discoveryConfig.useSudo ?? (await this.canUseSudo());
+    onProgress?.(useSudo ? "Running nmap with sudo (SYN scan + OS detection)" : "Running nmap without sudo (TCP connect scan)");
 
     // Build nmap args
     const nmapArgs = buildNmapArgs(discoveryConfig, useSudo);
+    onProgress?.(`Scanning subnets: ${discoveryConfig.subnets.join(", ")}`);
 
     // Create temp directory for XML output
     const tmpDir = await mkdtemp(join(tmpdir(), "infrawatch-nmap-"));
@@ -489,14 +544,16 @@ export class NetworkDiscoveryScanner extends BaseScanner {
 
     try {
       // Run nmap
-      await this.runNmap(fullArgs, maxMinutes, useSudo);
+      await this.runNmap(fullArgs, maxMinutes, useSudo, onProgress);
 
       // Read and parse XML output
+      onProgress?.("Nmap finished, parsing results...");
       const xmlContent = await readFile(xmlOutputPath, "utf-8");
       const nmapHosts = parseNmapXml(xmlContent);
 
       // Map to HostInventory
       const hosts = nmapHosts.map(mapNmapHostToInventory);
+      onProgress?.(`Found ${hosts.length} live host(s) with ${hosts.reduce((s, h) => s + h.services.length, 0)} open port(s)`);
 
       return { hosts };
     } finally {
@@ -535,7 +592,12 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     });
   }
 
-  private runNmap(args: string[], maxMinutes: number, useSudo: boolean): Promise<void> {
+  private runNmap(
+    args: string[],
+    maxMinutes: number,
+    useSudo: boolean,
+    onProgress?: (message: string) => void,
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const command = useSudo ? "sudo" : "nmap";
       const spawnArgs = useSudo ? ["nmap", ...args] : args;
@@ -545,8 +607,21 @@ export class NetworkDiscoveryScanner extends BaseScanner {
       });
 
       let stderr = "";
+      let stderrBuffer = "";
       proc.stderr?.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString();
+        const text = chunk.toString();
+        stderr += text;
+
+        // Parse nmap progress from stderr and forward to callback
+        if (onProgress) {
+          stderrBuffer += text;
+          const lines = stderrBuffer.split("\n");
+          stderrBuffer = lines.pop() ?? ""; // keep incomplete last line in buffer
+          for (const line of lines) {
+            const progressMsg = parseNmapProgress(line);
+            if (progressMsg) onProgress(progressMsg);
+          }
+        }
       });
 
       const timeout = setTimeout(() => {

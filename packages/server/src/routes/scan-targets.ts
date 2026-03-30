@@ -366,6 +366,7 @@ async function runScanAsync(
     const result = await scanner.scan({
       type: target.type,
       connectionConfig: target.connectionConfig,
+      onProgress: sl ? (msg) => { sl.log(scanLogId, "info", msg).catch(() => {}); } : undefined,
     });
 
     const hostCount = result.hosts?.length ?? 0;
