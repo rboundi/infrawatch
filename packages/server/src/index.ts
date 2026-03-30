@@ -301,46 +301,82 @@ async function start() {
   sessionService.cleanExpiredSessions();
   const sessionCleanupTimer = setInterval(() => sessionService.cleanExpiredSessions(), 24 * 60 * 60 * 1000);
 
+  // ─── Recover stale scan targets ───
+  try {
+    const staleRunning = await pool.query(
+      `UPDATE scan_targets
+       SET last_scan_status = 'failed', last_scan_error = 'Server restarted during scan', updated_at = NOW()
+       WHERE last_scan_status = 'running'
+       RETURNING id, name`
+    );
+    if (staleRunning.rows.length > 0) {
+      logger.info(
+        { count: staleRunning.rows.length, targets: staleRunning.rows.map((r) => r.name) },
+        "Recovered stale scan targets stuck in 'running' state"
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to recover stale scan targets");
+  }
+
   // ─── Graceful shutdown ───
   let shuttingDown = false;
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
 
   const shutdown = async (signal: string) => {
-    if (shuttingDown) return;
+    if (shuttingDown) {
+      logger.info({ signal }, "Second shutdown signal received, forcing immediate exit");
+      process.exit(1);
+    }
     shuttingDown = true;
 
     logger.info({ signal }, "Shutdown signal received, starting graceful shutdown...");
 
-    // 1. Stop accepting new connections
-    server.close(() => {
-      logger.info("HTTP server closed");
-    });
+    // Set a hard deadline — force exit if cleanup takes too long
+    const forceExitTimer = setTimeout(() => {
+      logger.error("Shutdown timeout exceeded, forcing exit");
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExitTimer.unref();
 
-    // 2. Stop background services
-    logger.info("Stopping scan orchestrator (waiting for current scan up to 30s)...");
-    await orchestrator.stop();
-    logger.info("Scan orchestrator stopped");
+    try {
+      // 1. Stop accepting new connections
+      server.close(() => {
+        logger.info("HTTP server closed");
+      });
 
-    logger.info("Stopping background services...");
-    staleChecker.stop();
-    versionChecker.stop();
-    emailNotifier.stop();
-    eolChecker.stop();
-    reportGenerator.stop();
-    notificationService.stop();
-    complianceScorer.stop();
-    maintenance.stop();
-    clearInterval(snapshotTimer);
-    clearInterval(sessionCleanupTimer);
-    if (digestTimer) clearTimeout(digestTimer);
-    if (digestInterval) clearInterval(digestInterval);
-    logger.info("Background services stopped");
+      // 2. Stop background services
+      logger.info("Stopping scan orchestrator (waiting for current scan)...");
+      await orchestrator.stop();
+      logger.info("Scan orchestrator stopped");
 
-    // 3. Close database pool
-    await pool.end();
-    logger.info("Database pool closed");
+      logger.info("Stopping background services...");
+      staleChecker.stop();
+      versionChecker.stop();
+      emailNotifier.stop();
+      eolChecker.stop();
+      reportGenerator.stop();
+      notificationService.stop();
+      complianceScorer.stop();
+      maintenance.stop();
+      clearInterval(snapshotTimer);
+      clearInterval(sessionCleanupTimer);
+      if (digestTimer) clearTimeout(digestTimer);
+      if (digestInterval) clearInterval(digestInterval);
+      logger.info("Background services stopped");
 
-    logger.info("Graceful shutdown complete");
-    process.exit(0);
+      // 3. Close database pool
+      await pool.end();
+      logger.info("Database pool closed");
+
+      logger.info("Graceful shutdown complete");
+      clearTimeout(forceExitTimer);
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, "Error during shutdown");
+      clearTimeout(forceExitTimer);
+      process.exit(1);
+    }
   };
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));
