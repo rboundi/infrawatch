@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import supertest from "supertest";
 import { getTestDb } from "./setup.js";
 import { getTestApp } from "./app.js";
+import { encrypt } from "../utils/crypto.js";
+import { config } from "../config.js";
 
 const DEFAULT_PASSWORD = "TestPass123";
 
@@ -68,6 +70,11 @@ interface ScanTargetOverrides {
 
 export async function createTestScanTarget(overrides: ScanTargetOverrides = {}) {
   const pool = getTestDb();
+  const rawConfig = overrides.connectionConfig
+    ? JSON.parse(overrides.connectionConfig)
+    : { host: "127.0.0.1" };
+  const encryptedConfig = encrypt(rawConfig, config.masterKey);
+
   const result = await pool.query(
     `INSERT INTO scan_targets (name, type, connection_config, scan_interval_hours, enabled, last_scan_status)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -75,7 +82,7 @@ export async function createTestScanTarget(overrides: ScanTargetOverrides = {}) 
     [
       overrides.name ?? `target_${randomUUID().slice(0, 8)}`,
       overrides.type ?? "ssh_linux",
-      overrides.connectionConfig ?? JSON.stringify({ host: "127.0.0.1" }),
+      JSON.stringify(encryptedConfig),
       overrides.scanIntervalHours ?? 6,
       overrides.enabled ?? true,
       overrides.lastScanStatus ?? "pending",

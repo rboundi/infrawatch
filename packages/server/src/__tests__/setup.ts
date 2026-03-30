@@ -4,6 +4,12 @@ import { beforeAll, afterEach, afterAll } from "vitest";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+// Ensure test environment has required env vars
+if (!process.env.MASTER_KEY) {
+  process.env.MASTER_KEY = "test-master-key-for-encryption-do-not-use-in-prod";
+}
+process.env.NODE_ENV = "test";
+
 const testDbConfig = {
   host: process.env.DB_HOST_TEST ?? process.env.DB_HOST ?? "localhost",
   port: parseInt(process.env.DB_PORT_TEST ?? process.env.DB_PORT ?? "5433", 10),
