@@ -569,6 +569,10 @@ export class NetworkDiscoveryScanner extends BaseScanner {
   async scan(config: ScanTargetConfig): Promise<ScanResult> {
     const discoveryConfig = config.connectionConfig as unknown as NetworkDiscoveryConfig;
     const onProgress = config.onProgress;
+    const signal = config.signal;
+
+    // Check if already cancelled
+    if (signal?.aborted) throw new Error("Scan cancelled");
 
     // Validate subnets
     validateSubnets(discoveryConfig.subnets);
@@ -592,7 +596,7 @@ export class NetworkDiscoveryScanner extends BaseScanner {
 
     try {
       // Run nmap
-      await this.runNmap(fullArgs, maxMinutes, useSudo, onProgress);
+      await this.runNmap(fullArgs, maxMinutes, useSudo, onProgress, signal);
 
       // Read and parse XML output
       onProgress?.("Nmap finished, parsing results...");
@@ -645,8 +649,14 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     maxMinutes: number,
     useSudo: boolean,
     onProgress?: (message: string) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error("Scan cancelled"));
+        return;
+      }
+
       const command = useSudo ? "sudo" : "nmap";
       const spawnArgs = useSudo ? ["nmap", ...args] : args;
 
@@ -654,9 +664,20 @@ export class NetworkDiscoveryScanner extends BaseScanner {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
+      let cancelled = false;
       let stderr = "";
       let stderrBuffer = "";
       let stdoutBuffer = "";
+
+      // Listen for abort signal to kill the nmap process
+      const onAbort = () => {
+        cancelled = true;
+        proc.kill("SIGTERM");
+        setTimeout(() => {
+          if (!proc.killed) proc.kill("SIGKILL");
+        }, 3000);
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       const processNmapOutput = (text: string, buffer: string): string => {
         buffer += text;
@@ -698,7 +719,10 @@ export class NetworkDiscoveryScanner extends BaseScanner {
 
       proc.on("close", (code) => {
         clearTimeout(timeout);
-        if (code === 0) {
+        signal?.removeEventListener("abort", onAbort);
+        if (cancelled) {
+          reject(new Error("Scan cancelled"));
+        } else if (code === 0) {
           resolve();
         } else {
           reject(
@@ -711,6 +735,7 @@ export class NetworkDiscoveryScanner extends BaseScanner {
 
       proc.on("error", (err) => {
         clearTimeout(timeout);
+        signal?.removeEventListener("abort", onAbort);
         reject(new Error(`Failed to start nmap: ${err.message}`));
       });
     });

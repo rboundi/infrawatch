@@ -59,7 +59,7 @@ export class ScanLogger {
   /**
    * Signal that a scan has completed. Emits done event and cleans up listeners.
    */
-  complete(scanLogId: string, status: "success" | "failed"): void {
+  complete(scanLogId: string, status: "success" | "failed" | "cancelled"): void {
     this.emitter.emit(`done:${scanLogId}`, { status });
     // Clean up all listeners for this scan after a short delay
     setTimeout(() => {

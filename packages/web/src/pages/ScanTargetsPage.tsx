@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Plus,
   Play,
+  Square,
   Pencil,
   Trash2,
   Loader2,
@@ -10,11 +11,13 @@ import {
   XCircle,
   Clock,
   AlertTriangle,
+  Ban,
   Zap,
 } from "lucide-react";
 import {
   useScanTargets,
   useTriggerScan,
+  useCancelScan,
   useDeleteTarget,
   useUpdateTarget,
   useTestConnection,
@@ -108,9 +111,12 @@ function TargetCard({ target }: { target: ScanTarget }) {
   } | null>(null);
 
   const triggerScan = useTriggerScan();
+  const cancelScan = useCancelScan();
   const deleteMutation = useDeleteTarget();
   const updateMutation = useUpdateTarget();
   const testMutation = useTestConnection();
+
+  const isRunning = target.lastScanStatus === "running";
 
   const handleToggleEnabled = () => {
     updateMutation.mutate({ id: target.id, enabled: !target.enabled });
@@ -218,19 +224,35 @@ function TargetCard({ target }: { target: ScanTarget }) {
 
       {/* Actions */}
       <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
-        <button
-          onClick={handleScanNow}
-          disabled={triggerScan.isPending || target.lastScanStatus === "running"}
-          className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
-          title="Scan Now"
-        >
-          {triggerScan.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Play className="h-3.5 w-3.5" />
-          )}
-          Scan
-        </button>
+        {isRunning ? (
+          <button
+            onClick={() => cancelScan.mutate(target.id)}
+            disabled={cancelScan.isPending}
+            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-900/20"
+            title="Stop Scan"
+          >
+            {cancelScan.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Square className="h-3.5 w-3.5" />
+            )}
+            Stop
+          </button>
+        ) : (
+          <button
+            onClick={handleScanNow}
+            disabled={triggerScan.isPending}
+            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
+            title="Scan Now"
+          >
+            {triggerScan.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+            Scan
+          </button>
+        )}
         <button
           onClick={handleTest}
           disabled={testMutation.isPending}
@@ -320,6 +342,13 @@ function StatusIndicator({ status }: { status: string }) {
       return (
         <div className="flex items-center gap-1.5" title="Scan running">
           <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+        </div>
+      );
+    case "cancelled":
+      return (
+        <div className="flex items-center gap-1.5" title="Scan cancelled">
+          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+          <Ban className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </div>
       );
     default:

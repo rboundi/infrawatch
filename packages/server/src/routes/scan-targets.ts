@@ -10,6 +10,9 @@ import { DataIngestionService } from "../services/data-ingestion.js";
 import type { AuditLogger } from "../services/audit-logger.js";
 import type { ScanLogger } from "../services/scan-logger.js";
 
+// Track running scans so they can be cancelled
+const runningScans = new Map<string, AbortController>();
+
 export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger, scanLogger?: ScanLogger): Router {
   const router = Router();
 
@@ -307,9 +310,15 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
       );
 
       // Run scan asynchronously — don't await
-      runScanAsync(pool, logger, target, scanLogId, scanLogger).catch((err) => {
-        logger.error({ err, scanLogId }, "Async scan failed unexpectedly");
-      });
+      const abortController = new AbortController();
+      runningScans.set(id, abortController);
+      runScanAsync(pool, logger, target, scanLogId, scanLogger, abortController.signal)
+        .catch((err) => {
+          logger.error({ err, scanLogId }, "Async scan failed unexpectedly");
+        })
+        .finally(() => {
+          runningScans.delete(id);
+        });
 
       audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.triggered", entityType: "scan_target", entityId: id, details: { scanLogId }, ipAddress: req.ip ?? null });
       res.status(202).json({ message: "Scan started", scanLogId });
@@ -317,6 +326,22 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
       logger.error({ err }, "Failed to trigger scan");
       res.status(500).json({ error: "Failed to trigger scan" });
     }
+  });
+
+  // ─── POST /api/v1/targets/:id/cancel ───
+  router.post("/:id/cancel", async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const controller = runningScans.get(id);
+
+    if (!controller) {
+      res.status(404).json({ error: "No running scan found for this target" });
+      return;
+    }
+
+    controller.abort();
+    logger.info({ targetId: id }, "Scan cancellation requested");
+    audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.cancelled", entityType: "scan_target", entityId: id, ipAddress: req.ip ?? null });
+    res.json({ message: "Scan cancellation requested" });
   });
 
   return router;
@@ -368,6 +393,7 @@ async function runScanAsync(
   target: TargetWithConfig,
   scanLogId: string,
   sl?: ScanLogger,
+  signal?: AbortSignal,
 ): Promise<void> {
   const startTime = Date.now();
   const ingestion = new DataIngestionService(pool, logger);
@@ -383,6 +409,7 @@ async function runScanAsync(
       type: target.type,
       connectionConfig: target.connectionConfig,
       onProgress: sl ? (msg) => { sl.log(scanLogId, "info", msg).catch(() => {}); } : undefined,
+      signal,
     });
 
     const hostCount = result.hosts?.length ?? 0;
@@ -422,24 +449,26 @@ async function runScanAsync(
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+    const isCancelled = errorMessage === "Scan cancelled";
+    const status = isCancelled ? "cancelled" : "failed";
 
-    await sl?.log(scanLogId, "error", `Scan failed: ${errorMessage}`);
-    sl?.complete(scanLogId, "failed");
+    await sl?.log(scanLogId, isCancelled ? "warn" : "error", isCancelled ? "Scan was cancelled by user" : `Scan failed: ${errorMessage}`);
+    sl?.complete(scanLogId, status);
 
     await pool.query(
-      `UPDATE scan_logs SET status = 'failed', completed_at = NOW(), error_message = $1 WHERE id = $2`,
-      [errorMessage, scanLogId]
+      `UPDATE scan_logs SET status = $1, completed_at = NOW(), error_message = $2 WHERE id = $3`,
+      [status, isCancelled ? null : errorMessage, scanLogId]
     ).catch(() => {});
 
     await pool.query(
-      `UPDATE scan_targets SET last_scan_status = 'failed', last_scanned_at = NOW(), last_scan_error = $1, updated_at = NOW()
-       WHERE id = $2`,
-      [errorMessage, target.id]
+      `UPDATE scan_targets SET last_scan_status = $1, last_scanned_at = NOW(), last_scan_error = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [status, isCancelled ? null : errorMessage, target.id]
     ).catch(() => {});
 
-    logger.error(
-      { err, targetId: target.id, scanLogId, durationMs: Date.now() - startTime },
-      "Scan failed"
+    logger.info(
+      { targetId: target.id, scanLogId, durationMs: Date.now() - startTime, cancelled: isCancelled },
+      isCancelled ? "Scan cancelled" : "Scan failed"
     );
   }
 }

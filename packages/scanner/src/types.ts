@@ -42,4 +42,6 @@ export interface ScanTargetConfig {
   connectionConfig: Record<string, unknown>;
   /** Optional callback for progress messages during long-running scans. */
   onProgress?: (message: string) => void;
+  /** Optional signal to cancel an in-progress scan. */
+  signal?: AbortSignal;
 }

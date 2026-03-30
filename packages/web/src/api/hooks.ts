@@ -199,6 +199,17 @@ export function useTriggerScan() {
   });
 }
 
+export function useCancelScan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (targetId: string) =>
+      post<{ message: string }>(`/targets/${targetId}/cancel`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["targets"] });
+    },
+  });
+}
+
 export function useCreateTarget() {
   const qc = useQueryClient();
   return useMutation({
