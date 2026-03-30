@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import type { SettingsService } from "./settings-service.js";
 
 const SALT_ROUNDS = 12;
 
@@ -48,6 +49,7 @@ export class UserService {
   constructor(
     private pool: pg.Pool,
     private logger: Logger,
+    private settings: SettingsService,
   ) {}
 
   // ─── Password hashing ───
@@ -68,8 +70,9 @@ export class UserService {
   ): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    if (password.length < 10) {
-      errors.push("Password must be at least 10 characters long");
+    const minLength = this.settings.get<number>("password_min_length");
+    if (password.length < minLength) {
+      errors.push(`Password must be at least ${minLength} characters long`);
     }
     if (!/[A-Z]/.test(password)) {
       errors.push("Password must contain at least one uppercase letter");

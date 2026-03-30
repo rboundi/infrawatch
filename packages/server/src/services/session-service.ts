@@ -1,10 +1,7 @@
 import type pg from "pg";
 import type { Logger } from "pino";
 import crypto from "node:crypto";
-
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
-const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
-const MAX_SESSIONS = 5;
+import type { SettingsService } from "./settings-service.js";
 
 interface SessionRow {
   id: string;
@@ -40,6 +37,7 @@ export class SessionService {
   constructor(
     private pool: pg.Pool,
     private logger: Logger,
+    private settings: SettingsService,
   ) {}
 
   private hashToken(token: string): string {
@@ -52,11 +50,11 @@ export class SessionService {
     userAgent: string | null,
   ): Promise<{ token: string; sessionId: string; expiresAt: Date }> {
     // Enforce concurrency limit before creating
-    await this.enforceConcurrencyLimit(userId, MAX_SESSIONS);
+    await this.enforceConcurrencyLimit(userId);
 
     const token = crypto.randomBytes(64).toString("hex");
     const tokenHash = this.hashToken(token);
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    const expiresAt = new Date(Date.now() + this.settings.get<number>("session_duration_hours") * 60 * 60 * 1000);
 
     const result = await this.pool.query<{ id: string }>(
       `INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
@@ -98,7 +96,7 @@ export class SessionService {
 
     // Check idle timeout
     const lastActivity = new Date(session.last_activity_at).getTime();
-    if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
+    if (Date.now() - lastActivity > this.settings.get<number>("session_idle_timeout_hours") * 60 * 60 * 1000) {
       await this.revokeSession(session.id);
       return null;
     }
@@ -162,17 +160,18 @@ export class SessionService {
 
   async enforceConcurrencyLimit(
     userId: string,
-    maxSessions: number = MAX_SESSIONS,
+    max?: number,
   ): Promise<void> {
+    const limit = max ?? this.settings.get<number>("max_concurrent_sessions");
     const countResult = await this.pool.query<{ count: string }>(
       "SELECT COUNT(*) AS count FROM sessions WHERE user_id = $1",
       [userId],
     );
 
     const count = parseInt(countResult.rows[0].count, 10);
-    if (count >= maxSessions) {
+    if (count >= limit) {
       // Delete oldest sessions to make room
-      const excess = count - maxSessions + 1;
+      const excess = count - limit + 1;
       await this.pool.query(
         `DELETE FROM sessions WHERE id IN (
            SELECT id FROM sessions WHERE user_id = $1
