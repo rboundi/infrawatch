@@ -364,8 +364,8 @@ export class EolChecker {
           activeMatches.add(key);
 
           const upsertResult = await this.pool.query(
-            `INSERT INTO eol_alerts (host_id, eol_definition_id, product_name, installed_version, eol_date, days_past_eol, successor_version)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO eol_alerts (host_id, eol_definition_id, product_name, installed_version, eol_date, days_past_eol, successor_version, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
              ON CONFLICT (host_id, eol_definition_id) DO UPDATE SET
                installed_version = EXCLUDED.installed_version,
                days_past_eol = EXCLUDED.days_past_eol,
