@@ -216,6 +216,7 @@ function DependencyGraph() {
   const { data, isLoading } = useDependencyMap();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredNode, setHoveredNode] = useState<SimNode | null>(null);
+  const hoveredNodeRef = useRef<SimNode | null>(null);
   const nodesRef = useRef<SimNode[]>([]);
   const edgesRef = useRef<SimEdge[]>([]);
   const animRef = useRef<number>(0);
@@ -362,7 +363,7 @@ function DependencyGraph() {
 
     // Draw nodes
     for (const node of nodesRef.current) {
-      const isHovered = hoveredNode?.id === node.id;
+      const isHovered = hoveredNodeRef.current?.id === node.id;
       const radius = isHovered ? 10 : 7;
 
       ctx.beginPath();
@@ -406,7 +407,12 @@ function DependencyGraph() {
         break;
       }
     }
+    hoveredNodeRef.current = found;
     setHoveredNode(found);
+    // Redraw immediately so the hover highlight appears
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w && h) draw(w, h);
   }, []);
 
   if (isLoading) {

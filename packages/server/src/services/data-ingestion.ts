@@ -377,34 +377,53 @@ export class DataIngestionService {
   ): Promise<void> {
     if (connections.length === 0) return;
 
-    for (const conn of connections) {
-      // Try to resolve target host by IP
-      const targetResult = await client.query<{ id: string }>(
-        `SELECT id FROM hosts WHERE ip_address = $1 LIMIT 1`,
-        [conn.remoteIp]
+    // Batch resolve: all unique remote IPs → host IDs
+    const uniqueIps = [...new Set(connections.map((c) => c.remoteIp))];
+    const hostLookup = new Map<string, string>();
+    if (uniqueIps.length > 0) {
+      const hostResult = await client.query<{ id: string; ip_address: string }>(
+        `SELECT id, ip_address FROM hosts WHERE ip_address = ANY($1)`,
+        [uniqueIps]
       );
-      const targetHostId = targetResult.rows[0]?.id ?? null;
-
-      // Try to match a service on the target host+port
-      let targetService: string | null = null;
-      if (targetHostId) {
-        const svcResult = await client.query<{ service_name: string }>(
-          `SELECT service_name FROM services WHERE host_id = $1 AND port = $2 LIMIT 1`,
-          [targetHostId, conn.remotePort]
-        );
-        targetService = svcResult.rows[0]?.service_name ?? null;
+      for (const row of hostResult.rows) {
+        hostLookup.set(row.ip_address, row.id);
       }
+    }
+
+    // Batch resolve: all unique (host_id, port) → service names
+    const svcKeys = new Set<string>();
+    for (const conn of connections) {
+      const hostId = hostLookup.get(conn.remoteIp);
+      if (hostId) svcKeys.add(`${hostId}:${conn.remotePort}`);
+    }
+    const svcLookup = new Map<string, string>();
+    if (svcKeys.size > 0) {
+      const resolvedHostIds = [...new Set([...svcKeys].map((k) => k.split(":")[0]))];
+      const svcResult = await client.query<{ host_id: string; port: number; service_name: string }>(
+        `SELECT host_id, port, service_name FROM services WHERE host_id = ANY($1) AND port IS NOT NULL`,
+        [resolvedHostIds]
+      );
+      for (const row of svcResult.rows) {
+        svcLookup.set(`${row.host_id}:${row.port}`, row.service_name);
+      }
+    }
+
+    for (const conn of connections) {
+      const targetHostId = hostLookup.get(conn.remoteIp) ?? null;
+      const targetService = targetHostId
+        ? (svcLookup.get(`${targetHostId}:${conn.remotePort}`) ?? null)
+        : null;
 
       await client.query(
         `INSERT INTO host_connections
            (source_host_id, target_host_id, target_ip, target_port, source_process, target_service, connection_type, first_seen_at, last_seen_at)
-         VALUES ($1, $2, $3, $4, $5, $6, 'observed', NOW(), NOW())
+         VALUES ($1, $2, $3, $4, COALESCE($5, ''), $6, 'observed', NOW(), NOW())
          ON CONFLICT (source_host_id, target_ip, target_port, source_process)
          DO UPDATE SET
            target_host_id = COALESCE(EXCLUDED.target_host_id, host_connections.target_host_id),
            target_service = COALESCE(EXCLUDED.target_service, host_connections.target_service),
            last_seen_at = NOW()`,
-        [sourceHostId, targetHostId, conn.remoteIp, conn.remotePort, conn.processName, targetService]
+        [sourceHostId, targetHostId, conn.remoteIp, conn.remotePort, conn.processName ?? "", targetService]
       );
     }
 

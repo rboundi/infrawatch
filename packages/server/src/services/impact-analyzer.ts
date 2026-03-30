@@ -1,5 +1,4 @@
 import type pg from "pg";
-import type { Logger } from "pino";
 
 export interface DependencyNode {
   hostId: string;
@@ -22,10 +21,7 @@ export interface ImpactResult {
 }
 
 export class ImpactAnalyzer {
-  constructor(
-    private pool: pg.Pool,
-    private logger: Logger
-  ) {}
+  constructor(private pool: pg.Pool) {}
 
   async analyzeImpact(hostId: string): Promise<ImpactResult> {
     // Get host info

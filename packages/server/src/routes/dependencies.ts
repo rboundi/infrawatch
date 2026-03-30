@@ -3,9 +3,15 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import type { ImpactAnalyzer } from "../services/impact-analyzer.js";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_DIRECTIONS = ["outgoing", "incoming", "both"] as const;
+const MAX_MAP_NODES = 500;
+const MAX_MAP_EDGES = 2000;
+const MAX_ANNOTATIONS = 500;
+
 export function createDependencyRoutes(
   pool: pg.Pool,
-  logger: Logger,
+  _logger: Logger,
   impactAnalyzer: ImpactAnalyzer
 ): Router {
   const router = Router();
@@ -14,9 +20,17 @@ export function createDependencyRoutes(
   router.get("/connections", async (req, res, next) => {
     try {
       const hostId = req.query.hostId as string | undefined;
-      const direction = (req.query.direction as string) ?? "both"; // "outgoing", "incoming", "both"
-      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const directionRaw = (req.query.direction as string) ?? "both";
+      const direction = VALID_DIRECTIONS.includes(directionRaw as typeof VALID_DIRECTIONS[number])
+        ? directionRaw
+        : "both";
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 500);
+      const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+      if (hostId && !UUID_RE.test(hostId)) {
+        res.status(400).json({ error: "hostId must be a valid UUID" });
+        return;
+      }
 
       let where = "WHERE 1=1";
       const params: (string | number)[] = [];
@@ -75,6 +89,10 @@ export function createDependencyRoutes(
   // ─── GET /impact/:hostId — Impact analysis for a host ───
   router.get("/impact/:hostId", async (req, res, next) => {
     try {
+      if (!UUID_RE.test(req.params.hostId)) {
+        res.status(400).json({ error: "hostId must be a valid UUID" });
+        return;
+      }
       const impact = await impactAnalyzer.analyzeImpact(req.params.hostId);
       res.json(impact);
     } catch (err) {
@@ -85,7 +103,6 @@ export function createDependencyRoutes(
   // ─── GET /map — Full dependency map for graph visualization ───
   router.get("/map", async (req, res, next) => {
     try {
-      // Get all hosts that have connections
       const nodesResult = await pool.query(
         `SELECT DISTINCT h.id, h.hostname, h.ip_address, h.os, h.status
          FROM hosts h
@@ -93,7 +110,9 @@ export function createDependencyRoutes(
            SELECT source_host_id FROM host_connections
            UNION
            SELECT target_host_id FROM host_connections WHERE target_host_id IS NOT NULL
-         )`
+         )
+         LIMIT $1`,
+        [MAX_MAP_NODES]
       );
 
       const edgesResult = await pool.query(
@@ -106,7 +125,9 @@ export function createDependencyRoutes(
            target_service,
            connection_type
          FROM host_connections
-         WHERE target_host_id IS NOT NULL`
+         WHERE target_host_id IS NOT NULL
+         LIMIT $1`,
+        [MAX_MAP_EDGES]
       );
 
       res.json({
@@ -137,12 +158,19 @@ export function createDependencyRoutes(
     try {
       const hostId = req.query.hostId as string | undefined;
 
+      if (hostId && !UUID_RE.test(hostId)) {
+        res.status(400).json({ error: "hostId must be a valid UUID" });
+        return;
+      }
+
       let where = "";
-      const params: string[] = [];
+      const params: (string | number)[] = [];
+      let idx = 1;
 
       if (hostId) {
-        where = "WHERE da.source_host_id = $1 OR da.target_host_id = $1";
+        where = `WHERE da.source_host_id = $${idx} OR da.target_host_id = $${idx}`;
         params.push(hostId);
+        idx++;
       }
 
       const result = await pool.query(
@@ -160,8 +188,9 @@ export function createDependencyRoutes(
          JOIN hosts sh ON sh.id = da.source_host_id
          JOIN hosts th ON th.id = da.target_host_id
          ${where}
-         ORDER BY da.created_at DESC`,
-        params
+         ORDER BY da.created_at DESC
+         LIMIT $${idx}`,
+        [...params, MAX_ANNOTATIONS]
       );
 
       res.json(result.rows);
@@ -180,6 +209,26 @@ export function createDependencyRoutes(
         return;
       }
 
+      if (!UUID_RE.test(sourceHostId) || !UUID_RE.test(targetHostId)) {
+        res.status(400).json({ error: "sourceHostId and targetHostId must be valid UUIDs" });
+        return;
+      }
+
+      if (typeof label !== "string" || label.length > 255) {
+        res.status(400).json({ error: "label must be a string of at most 255 characters" });
+        return;
+      }
+
+      if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 5000)) {
+        res.status(400).json({ error: "notes must be a string of at most 5000 characters" });
+        return;
+      }
+
+      if (createdBy !== undefined && createdBy !== null && (typeof createdBy !== "string" || createdBy.length > 255)) {
+        res.status(400).json({ error: "createdBy must be a string of at most 255 characters" });
+        return;
+      }
+
       const result = await pool.query(
         `INSERT INTO dependency_annotations (source_host_id, target_host_id, label, notes, created_by)
          VALUES ($1, $2, $3, $4, $5)
@@ -188,7 +237,7 @@ export function createDependencyRoutes(
            notes = EXCLUDED.notes,
            created_by = EXCLUDED.created_by
          RETURNING *`,
-        [sourceHostId, targetHostId, label, notes ?? null, createdBy ?? null]
+        [sourceHostId, targetHostId, label.trim(), notes ?? null, createdBy ?? null]
       );
 
       res.status(201).json(result.rows[0]);
@@ -200,6 +249,10 @@ export function createDependencyRoutes(
   // ─── DELETE /annotations/:id — Delete an annotation ───
   router.delete("/annotations/:id", async (req, res, next) => {
     try {
+      if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: "id must be a valid UUID" });
+        return;
+      }
       await pool.query(`DELETE FROM dependency_annotations WHERE id = $1`, [req.params.id]);
       res.status(204).end();
     } catch (err) {

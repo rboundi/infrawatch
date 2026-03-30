@@ -161,7 +161,7 @@ const eolChecker = new EolChecker(pool, logger);
 const reportGenerator = new ReportGenerator(pool, logger);
 const notificationService = new NotificationService(pool, logger);
 const groupAssignment = new GroupAssignmentService(pool, logger);
-const impactAnalyzer = new ImpactAnalyzer(pool, logger);
+const impactAnalyzer = new ImpactAnalyzer(pool);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
