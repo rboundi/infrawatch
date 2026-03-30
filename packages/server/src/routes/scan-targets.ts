@@ -377,6 +377,11 @@ async function runScanAsync(
     const { hostsUpserted, packagesFound } =
       await ingestion.processResults(target.id, result);
 
+    // Populate network_discovery_results for network_discovery scans
+    if (target.type === "network_discovery" && result.hosts.length > 0) {
+      await populateDiscoveryResults(pool, target.id, scanLogId, result.hosts, logger);
+    }
+
     // Update scan log as success
     await pool.query(
       `UPDATE scan_logs SET status = 'success', completed_at = NOW(), hosts_discovered = $1, packages_discovered = $2
@@ -420,6 +425,65 @@ async function runScanAsync(
       { err, targetId: target.id, scanLogId, durationMs: Date.now() - startTime },
       "Scan failed"
     );
+  }
+}
+
+/**
+ * Populate network_discovery_results from scan output so the Discovery page can display them.
+ * Upserts by (scan_target_id, ip_address) so re-scans update existing rows rather than duplicating.
+ */
+async function populateDiscoveryResults(
+  pool: pg.Pool,
+  scanTargetId: string,
+  scanLogId: string,
+  hosts: import("@infrawatch/scanner").HostInventory[],
+  logger: Logger,
+): Promise<void> {
+  try {
+    for (const host of hosts) {
+      const meta = (host.metadata ?? {}) as Record<string, unknown>;
+      const osMatches = meta.osMatches as { name: string; accuracy: number }[] | undefined;
+      const bestOs = osMatches?.[0];
+      const openPorts = host.services
+        .filter((s) => s.port)
+        .map((s) => ({
+          port: s.port,
+          protocol: "tcp",
+          service: s.name,
+          product: s.version ? `${s.name} ${s.version}` : s.name,
+        }));
+
+      await pool.query(
+        `INSERT INTO network_discovery_results
+           (scan_target_id, scan_log_id, ip_address, hostname, mac_address,
+            os_match, os_accuracy, open_ports, detected_platform)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+         ON CONFLICT ON CONSTRAINT network_discovery_results_target_ip
+         DO UPDATE SET
+           scan_log_id = EXCLUDED.scan_log_id,
+           hostname = COALESCE(EXCLUDED.hostname, network_discovery_results.hostname),
+           mac_address = COALESCE(EXCLUDED.mac_address, network_discovery_results.mac_address),
+           os_match = COALESCE(EXCLUDED.os_match, network_discovery_results.os_match),
+           os_accuracy = COALESCE(EXCLUDED.os_accuracy, network_discovery_results.os_accuracy),
+           open_ports = EXCLUDED.open_ports,
+           detected_platform = COALESCE(EXCLUDED.detected_platform, network_discovery_results.detected_platform),
+           created_at = NOW()`,
+        [
+          scanTargetId,
+          scanLogId,
+          host.ip,
+          host.hostname !== host.ip ? host.hostname : null,
+          (meta.mac as string) ?? null,
+          bestOs?.name ?? host.os !== "Unknown" ? host.os : null,
+          bestOs?.accuracy ?? null,
+          JSON.stringify(openPorts),
+          (meta.platform as string) ?? null,
+        ],
+      );
+    }
+    logger.info({ scanTargetId, count: hosts.length }, "Populated discovery results");
+  } catch (err) {
+    logger.error({ err, scanTargetId }, "Failed to populate discovery results");
   }
 }
 
