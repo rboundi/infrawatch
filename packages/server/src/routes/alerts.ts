@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
+import type { AuditLogger } from "../services/audit-logger.js";
 import { generateRemediation, generateHostRemediationPlan, type AlertContext } from "../services/remediation-generator.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
+export function createAlertRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // ─── GET /api/v1/alerts ───
@@ -162,6 +163,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
       }
 
       logger.info({ alertId: id }, "Alert acknowledged");
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "alert.acknowledged", entityType: "alert", entityId: id, details: { notes: notes || null }, ipAddress: req.ip ?? null });
       res.json(formatAlertWithHost(result.rows[0]));
     } catch (err) {
       logger.error({ err }, "Failed to acknowledge alert");
@@ -195,6 +197,8 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
         { count: result.rowCount, alertIds },
         "Bulk acknowledge completed"
       );
+
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "alert.bulk_acknowledged", entityType: "alert", details: { alertIds: ids, count: result.rowCount }, ipAddress: req.ip ?? null });
 
       res.json({
         acknowledged: result.rowCount,
@@ -337,7 +341,7 @@ export function createAlertRoutes(pool: pg.Pool, logger: Logger): Router {
   return router;
 }
 
-export function createStatsRoutes(pool: pg.Pool, logger: Logger): Router {
+export function createStatsRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // ─── GET /api/v1/stats/overview ───
