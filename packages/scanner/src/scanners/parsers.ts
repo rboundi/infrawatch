@@ -45,7 +45,7 @@ export function parseHostnameIp(output: string): string {
 
 export function parseDpkgOutput(output: string): PackageInfo[] {
   const packages: PackageInfo[] = [];
-  const lines = output.trim().split("\n");
+  const lines = output.split("\n");
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -65,7 +65,7 @@ export function parseDpkgOutput(output: string): PackageInfo[] {
 
 export function parseRpmOutput(output: string): PackageInfo[] {
   const packages: PackageInfo[] = [];
-  const lines = output.trim().split("\n");
+  const lines = output.split("\n");
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -85,7 +85,7 @@ export function parseRpmOutput(output: string): PackageInfo[] {
 
 export function parseApkOutput(output: string): PackageInfo[] {
   const packages: PackageInfo[] = [];
-  const lines = output.trim().split("\n");
+  const lines = output.split("\n");
 
   for (const line of lines) {
     if (!line.trim()) continue;
