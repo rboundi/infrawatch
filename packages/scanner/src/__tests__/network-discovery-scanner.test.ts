@@ -30,7 +30,7 @@ describe("buildNmapArgs", () => {
     const config: NetworkDiscoveryConfig = {
       subnets: ["192.168.1.0/24"],
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("-sS");
     expect(args).toContain("-T2");
@@ -50,7 +50,7 @@ describe("buildNmapArgs", () => {
       subnets: ["10.0.0.0/24"],
       scanProfile: "stealthy",
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("-T1");
     expect(args).not.toContain("--min-rate");
@@ -62,7 +62,7 @@ describe("buildNmapArgs", () => {
       subnets: ["192.168.1.0/24"],
       portProfile: "full",
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("-p-");
     expect(args).not.toContain(INFRASTRUCTURE_PORTS);
@@ -74,7 +74,7 @@ describe("buildNmapArgs", () => {
       portProfile: "custom",
       customPorts: "80,443,8080",
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("-p");
     expect(args).toContain("80,443,8080");
@@ -85,7 +85,7 @@ describe("buildNmapArgs", () => {
       subnets: ["192.168.1.0/24"],
       excludeHosts: ["192.168.1.1", "192.168.1.2"],
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("--exclude");
     expect(args).toContain("192.168.1.1,192.168.1.2");
@@ -96,7 +96,7 @@ describe("buildNmapArgs", () => {
       subnets: ["192.168.1.0/24"],
       enableScriptScan: true,
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("--script");
     expect(args).toContain(
@@ -114,7 +114,7 @@ describe("buildNmapArgs", () => {
       enableScriptScan: true,
       excludeHosts: ["10.0.0.1"],
     };
-    const args = buildNmapArgs(config);
+    const args = buildNmapArgs(config, true);
 
     expect(args).toContain("-T4");
     expect(args).toContain("-p-");

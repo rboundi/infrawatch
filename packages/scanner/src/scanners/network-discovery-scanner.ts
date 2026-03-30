@@ -27,6 +27,8 @@ export interface NetworkDiscoveryConfig {
   autoPromote?: "none" | "suggest";
   sshTemplateTargetId?: string;
   winrmTemplateTargetId?: string;
+  /** Run nmap with sudo (required for SYN scan and OS detection). Defaults to auto-detect. */
+  useSudo?: boolean;
 }
 
 // ─── Constants ───
@@ -69,18 +71,23 @@ export interface NmapPort {
 
 // ─── Pure functions ───
 
-export function buildNmapArgs(config: NetworkDiscoveryConfig): string[] {
+export function buildNmapArgs(config: NetworkDiscoveryConfig, useSudo: boolean): string[] {
   const args: string[] = [];
 
-  // TCP SYN scan
-  args.push("-sS");
+  if (useSudo) {
+    // TCP SYN scan (requires root)
+    args.push("-sS");
+  } else {
+    // TCP connect scan (no root needed)
+    args.push("-sT");
+  }
 
   // Timing
   const profile = config.scanProfile ?? "polite";
   args.push(TIMING_MAP[profile] ?? "-T2");
 
-  // OS detection
-  if (config.enableOsDetection !== false) {
+  // OS detection (requires root)
+  if (config.enableOsDetection !== false && useSudo) {
     args.push("-O", "--osscan-guess");
   }
 
@@ -465,8 +472,11 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     // Validate subnets
     validateSubnets(discoveryConfig.subnets);
 
+    // Determine if we should use sudo
+    const useSudo = discoveryConfig.useSudo ?? (await this.canUseSudo());
+
     // Build nmap args
-    const nmapArgs = buildNmapArgs(discoveryConfig);
+    const nmapArgs = buildNmapArgs(discoveryConfig, useSudo);
 
     // Create temp directory for XML output
     const tmpDir = await mkdtemp(join(tmpdir(), "infrawatch-nmap-"));
@@ -478,8 +488,8 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     const maxMinutes = discoveryConfig.maxScanMinutes ?? 30;
 
     try {
-      // Run nmap with sudo
-      await this.runNmap(fullArgs, maxMinutes);
+      // Run nmap
+      await this.runNmap(fullArgs, maxMinutes, useSudo);
 
       // Read and parse XML output
       const xmlContent = await readFile(xmlOutputPath, "utf-8");
@@ -500,9 +510,37 @@ export class NetworkDiscoveryScanner extends BaseScanner {
     }
   }
 
-  private runNmap(args: string[], maxMinutes: number): Promise<void> {
+  /**
+   * Check if we can run sudo without a password (e.g. in Docker container).
+   */
+  private canUseSudo(): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      // Check if already running as root
+      if (process.getuid?.() === 0) {
+        resolve(false); // No sudo needed, already root
+        return;
+      }
+
+      const proc = spawn("sudo", ["-n", "true"], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      proc.on("close", (code) => resolve(code === 0));
+      proc.on("error", () => resolve(false));
+
+      // Don't wait forever
+      setTimeout(() => {
+        proc.kill();
+        resolve(false);
+      }, 3000);
+    });
+  }
+
+  private runNmap(args: string[], maxMinutes: number, useSudo: boolean): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const proc = spawn("sudo", ["nmap", ...args], {
+      const command = useSudo ? "sudo" : "nmap";
+      const spawnArgs = useSudo ? ["nmap", ...args] : args;
+
+      const proc = spawn(command, spawnArgs, {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
