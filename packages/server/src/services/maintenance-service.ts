@@ -51,7 +51,7 @@ export class MaintenanceService {
 
     summary.change_events = await this.deleteOlderThan(
       "change_events",
-      "detected_at",
+      "created_at",
       this.settings.get<number>("change_retention_days"),
     );
 
