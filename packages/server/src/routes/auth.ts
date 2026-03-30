@@ -3,16 +3,10 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import type { UserService } from "../services/user-service.js";
 import type { SessionService } from "../services/session-service.js";
+import type { SettingsService } from "../services/settings-service.js";
 import { createRequireAuth } from "../middleware/auth.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Lock durations based on failed attempts
-const LOCK_THRESHOLDS = [
-  { attempts: 20, durationMs: 100 * 365 * 24 * 60 * 60 * 1000 }, // 100 years (effectively permanent)
-  { attempts: 10, durationMs: 60 * 60 * 1000 },                   // 1 hour
-  { attempts: 5, durationMs: 15 * 60 * 1000 },                    // 15 minutes
-];
 
 async function auditLog(
   pool: pg.Pool,
@@ -34,6 +28,7 @@ export function createAuthRoutes(
   logger: Logger,
   userService: UserService,
   sessionService: SessionService,
+  settingsService: SettingsService,
 ): Router {
   const router = Router();
   const requireAuth = createRequireAuth(sessionService);
@@ -87,12 +82,18 @@ export function createAuthRoutes(
         const newAttempts = user.failed_login_attempts + 1;
 
         // Determine lock duration
+        const lockThreshold = settingsService.get<number>("failed_login_lock_threshold");
+        const lockMinutes = settingsService.get<number>("failed_login_lock_minutes");
         let lockUntil: string | null = null;
-        for (const threshold of LOCK_THRESHOLDS) {
-          if (newAttempts >= threshold.attempts) {
-            lockUntil = new Date(Date.now() + threshold.durationMs).toISOString();
-            break;
-          }
+        if (newAttempts >= lockThreshold * 4) {
+          // Permanent lock after 4x threshold
+          lockUntil = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (newAttempts >= lockThreshold * 2) {
+          // 1 hour lock after 2x threshold
+          lockUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        } else if (newAttempts >= lockThreshold) {
+          // Configurable lock duration
+          lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000).toISOString();
         }
 
         await pool.query(
@@ -139,7 +140,7 @@ export function createAuthRoutes(
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        maxAge: 8 * 60 * 60 * 1000, // 8 hours
+        maxAge: settingsService.get<number>("session_duration_hours") * 60 * 60 * 1000,
         path: "/",
       });
 
