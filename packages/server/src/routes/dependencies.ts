@@ -2,6 +2,7 @@ import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 import type { ImpactAnalyzer } from "../services/impact-analyzer.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_DIRECTIONS = ["outgoing", "incoming", "both"] as const;
@@ -12,7 +13,8 @@ const MAX_ANNOTATIONS = 500;
 export function createDependencyRoutes(
   pool: pg.Pool,
   _logger: Logger,
-  impactAnalyzer: ImpactAnalyzer
+  impactAnalyzer: ImpactAnalyzer,
+  audit?: AuditLogger
 ): Router {
   const router = Router();
 
@@ -240,7 +242,17 @@ export function createDependencyRoutes(
         [sourceHostId, targetHostId, label.trim(), notes ?? null, createdBy ?? null]
       );
 
-      res.status(201).json(result.rows[0]);
+      const row = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "dependency_annotation.created",
+        entityType: "dependency_annotation",
+        entityId: row.id,
+        details: { sourceHostId, targetHostId, label: label.trim(), notes: notes ?? null, createdBy: createdBy ?? null },
+        ipAddress: req.ip ?? null,
+      });
+      res.status(201).json(row);
     } catch (err) {
       next(err);
     }
@@ -254,6 +266,15 @@ export function createDependencyRoutes(
         return;
       }
       await pool.query(`DELETE FROM dependency_annotations WHERE id = $1`, [req.params.id]);
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "dependency_annotation.deleted",
+        entityType: "dependency_annotation",
+        entityId: req.params.id,
+        details: { id: req.params.id },
+        ipAddress: req.ip ?? null,
+      });
       res.status(204).end();
     } catch (err) {
       next(err);
