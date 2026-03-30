@@ -125,6 +125,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
   // ─── GET /api/v1/hosts/:id ───
   router.get("/:id", async (req: Request, res: Response) => {
     const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
     try {
       // Host detail
       const hostResult = await pool.query(
@@ -220,6 +221,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
   // ─── GET /api/v1/hosts/:id/packages ───
   router.get("/:id/packages", async (req: Request, res: Response) => {
     const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
     try {
       const {
         search,
@@ -300,6 +302,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
   // ─── GET /api/v1/hosts/:id/history ───
   router.get("/:id/history", async (req: Request, res: Response) => {
     const id = req.params.id as string;
+    if (!UUID_RE.test(id)) { res.status(400).json({ error: "Invalid host ID" }); return; }
     try {
       // Get host's scan_target_id
       const hostResult = await pool.query(
