@@ -2,6 +2,7 @@ import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 import type { NotificationService } from "../services/notifications/notification-service.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,7 +21,8 @@ function maskWebhookUrl(url: string | null): string | null {
 export function createNotificationRoutes(
   pool: pg.Pool,
   _logger: Logger,
-  notificationService: NotificationService
+  notificationService: NotificationService,
+  audit?: AuditLogger
 ): Router {
   const router = Router();
 
@@ -85,6 +87,7 @@ export function createNotificationRoutes(
       );
 
       const r = result.rows[0];
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.created", entityType: "notification_channel", entityId: result.rows[0].id, details: { name, type }, ipAddress: req.ip ?? null });
       res.status(201).json({
         id: r.id,
         name: r.name,
@@ -160,6 +163,7 @@ export function createNotificationRoutes(
       }
 
       const r = result.rows[0];
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.updated", entityType: "notification_channel", entityId: id, ipAddress: req.ip ?? null });
       res.json({
         id: r.id,
         name: r.name,
@@ -194,6 +198,7 @@ export function createNotificationRoutes(
         return res.status(404).json({ error: "Channel not found" });
       }
 
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.deleted", entityType: "notification_channel", entityId: id, ipAddress: req.ip ?? null });
       res.json({ message: "Channel deleted" });
     } catch (err) {
       next(err);
@@ -207,6 +212,7 @@ export function createNotificationRoutes(
       if (!UUID_RE.test(id)) return res.status(400).json({ error: "Invalid channel ID" });
 
       const result = await notificationService.sendTest(id);
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "notification_channel.tested", entityType: "notification_channel", entityId: id, ipAddress: req.ip ?? null });
       res.json(result);
     } catch (err) {
       next(err);
