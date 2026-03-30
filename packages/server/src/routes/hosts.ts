@@ -2,10 +2,11 @@ import { Router, type Request, type Response } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
 import { generateHostRemediationPlan } from "../services/remediation-generator.js";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
+export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // ─── GET /api/v1/hosts ───
@@ -359,13 +360,16 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
         res.status(400).json({ error: "key is required" });
         return;
       }
+      const tagKey = key.trim();
+      const tagValue = value ?? null;
       const result = await pool.query(
         `INSERT INTO host_tags (host_id, tag_key, tag_value)
          VALUES ($1, $2, $3)
          ON CONFLICT (host_id, tag_key) DO UPDATE SET tag_value = $3
          RETURNING id, tag_key, tag_value`,
-        [id, key.trim(), value ?? null]
+        [id, tagKey, tagValue]
       );
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "host.tags_added", entityType: "host", entityId: id, details: { tagKey, tagValue }, ipAddress: req.ip ?? null });
       res.status(201).json({ id: result.rows[0].id, key: result.rows[0].tag_key, value: result.rows[0].tag_value });
     } catch (err) {
       logger.error({ err }, "Failed to create tag");
@@ -387,6 +391,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger): Router {
         res.status(404).json({ error: "Tag not found" });
         return;
       }
+      audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "host.tags_removed", entityType: "host", entityId: id, details: { tagKey }, ipAddress: req.ip ?? null });
       res.status(204).end();
     } catch (err) {
       logger.error({ err }, "Failed to delete tag");
