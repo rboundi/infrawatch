@@ -15,10 +15,6 @@ RUN npm ci --workspace=packages/web
 # Copy web source
 COPY packages/web/ packages/web/
 
-# Accept VITE_API_KEY at build time so it's baked into the bundle
-ARG VITE_API_KEY=""
-ENV VITE_API_KEY=${VITE_API_KEY}
-
 # Build production bundle
 RUN npm run build -w packages/web
 

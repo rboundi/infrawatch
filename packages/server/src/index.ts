@@ -4,6 +4,7 @@ import pino from "pino";
 import { pinoHttp } from "pino-http";
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { readFileSync } from "fs";
 import { config } from "./config.js";
@@ -19,11 +20,12 @@ import { createNotificationRoutes } from "./routes/notifications.js";
 import { createGroupRoutes } from "./routes/groups.js";
 import { createDependencyRoutes } from "./routes/dependencies.js";
 import { createComplianceRoutes } from "./routes/compliance.js";
+import { createAuthRoutes } from "./routes/auth.js";
 import { GroupAssignmentService } from "./services/group-assignment.js";
 import { ImpactAnalyzer } from "./services/impact-analyzer.js";
 import { ComplianceScorer } from "./services/compliance-scorer.js";
 import { createErrorHandler } from "./middleware/error-handler.js";
-import { apiKeyAuth } from "./middleware/api-key.js";
+import { createRequireAuth } from "./middleware/auth.js";
 import { ScanOrchestrator } from "./services/scan-orchestrator.js";
 import { StaleHostChecker } from "./services/stale-host-checker.js";
 import { VersionChecker } from "./services/version-checker.js";
@@ -33,6 +35,7 @@ import { EolChecker } from "./services/eol-checker.js";
 import { ReportGenerator } from "./services/reports/report-generator.js";
 import { NotificationService } from "./services/notifications/notification-service.js";
 import { UserService } from "./services/user-service.js";
+import { SessionService } from "./services/session-service.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -54,14 +57,18 @@ app.use(helmet());
 app.use(
   cors({
     origin: config.corsOrigin,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "X-API-Key"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
   })
 );
 
 // Request body limits
 app.use(express.json({ limit: "1mb" }));
+
+// Cookie parsing
+app.use(cookieParser());
 
 // Request logging
 app.use(pinoHttp({ logger }));
@@ -83,12 +90,12 @@ const scanLimiter = rateLimit({
   message: { error: "Too many scan requests, please try again later" },
 });
 
-const authLimiter = rateLimit({
+const loginLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 5,
+  limit: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many auth attempts, please try again later" },
+  message: { error: "Too many login attempts, please try again later" },
 });
 
 app.use("/api/", globalLimiter);
@@ -144,15 +151,12 @@ app.get("/api/v1/health", async (_req, res) => {
   });
 });
 
-// ─── API key auth (all /api/v1 routes below) ───
-app.use("/api/v1", apiKeyAuth);
-
 // ─── Scan trigger rate limit ───
 app.use("/api/v1/targets/:id/scan", scanLimiter);
 app.use("/api/v1/targets/:id/test", scanLimiter);
 
-// Auth limiter placeholder for future auth routes
-app.use("/api/v1/auth", authLimiter);
+// Login rate limiter
+app.use("/api/v1/auth/login", loginLimiter);
 
 // ─── Background services (instantiated before routes — reportGenerator/notificationService needed by routes) ───
 const orchestrator = new ScanOrchestrator(pool, logger);
@@ -167,6 +171,8 @@ const groupAssignment = new GroupAssignmentService(pool, logger);
 const impactAnalyzer = new ImpactAnalyzer(pool);
 const complianceScorer = new ComplianceScorer(pool, logger);
 const userService = new UserService(pool, logger);
+const sessionService = new SessionService(pool, logger);
+const requireAuth = createRequireAuth(sessionService);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
@@ -177,18 +183,23 @@ versionChecker.setNotificationService(notificationService);
 eolChecker.setNotificationService(notificationService);
 
 // ─── Routes ───
-app.use("/api/v1/targets", createScanTargetRoutes(pool, logger));
-app.use("/api/v1/hosts", createHostRoutes(pool, logger));
-app.use("/api/v1/alerts", createAlertRoutes(pool, logger));
-app.use("/api/v1/stats", createStatsRoutes(pool, logger));
-app.use("/api/v1/discovery", createDiscoveryRoutes(pool, logger));
-app.use("/api/v1/changes", createChangeRoutes(pool, logger));
-app.use("/api/v1/eol", createEolRoutes(pool, logger));
-app.use("/api/v1/reports", createReportRoutes(pool, logger, reportGenerator));
-app.use("/api/v1/notifications", createNotificationRoutes(pool, logger, notificationService));
-app.use("/api/v1/groups", createGroupRoutes(pool, logger, groupAssignment));
-app.use("/api/v1/dependencies", createDependencyRoutes(pool, logger, impactAnalyzer));
-app.use("/api/v1/compliance", createComplianceRoutes(pool, logger, complianceScorer));
+
+// Auth routes (login is public, others require auth — handled inside the router)
+app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionService));
+
+// All remaining routes require authentication
+app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger));
+app.use("/api/v1/hosts", requireAuth, createHostRoutes(pool, logger));
+app.use("/api/v1/alerts", requireAuth, createAlertRoutes(pool, logger));
+app.use("/api/v1/stats", requireAuth, createStatsRoutes(pool, logger));
+app.use("/api/v1/discovery", requireAuth, createDiscoveryRoutes(pool, logger));
+app.use("/api/v1/changes", requireAuth, createChangeRoutes(pool, logger));
+app.use("/api/v1/eol", requireAuth, createEolRoutes(pool, logger));
+app.use("/api/v1/reports", requireAuth, createReportRoutes(pool, logger, reportGenerator));
+app.use("/api/v1/notifications", requireAuth, createNotificationRoutes(pool, logger, notificationService));
+app.use("/api/v1/groups", requireAuth, createGroupRoutes(pool, logger, groupAssignment));
+app.use("/api/v1/dependencies", requireAuth, createDependencyRoutes(pool, logger, impactAnalyzer));
+app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, complianceScorer));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
@@ -250,6 +261,10 @@ async function start() {
   changeDetector.takeSnapshot();
   const snapshotTimer = setInterval(() => changeDetector.takeSnapshot(), 24 * 60 * 60 * 1000);
 
+  // Daily session cleanup
+  sessionService.cleanExpiredSessions();
+  const sessionCleanupTimer = setInterval(() => sessionService.cleanExpiredSessions(), 24 * 60 * 60 * 1000);
+
   // ─── Graceful shutdown ───
   let shuttingDown = false;
 
@@ -278,6 +293,7 @@ async function start() {
     notificationService.stop();
     complianceScorer.stop();
     clearInterval(snapshotTimer);
+    clearInterval(sessionCleanupTimer);
     logger.info("Background services stopped");
 
     // 3. Close database pool

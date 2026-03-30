@@ -1,17 +1,3 @@
-import type { Request, Response, NextFunction } from "express";
-import { config } from "../config.js";
-
-export function apiKeyAuth(req: Request, res: Response, next: NextFunction) {
-  if (!config.apiKey) {
-    return next();
-  }
-
-  const provided = req.header("X-API-Key");
-
-  if (!provided || provided !== config.apiKey) {
-    res.status(401).json({ error: "Invalid or missing API key" });
-    return;
-  }
-
-  next();
-}
+// This module has been replaced by session-based authentication.
+// See middleware/auth.ts for the new authentication middleware.
+// Kept as an empty file to avoid breaking any residual imports.

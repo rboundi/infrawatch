@@ -11,7 +11,6 @@ export const config = {
   },
   port: parseInt(process.env.PORT ?? "3001", 10),
   masterKey: process.env.MASTER_KEY ?? "",
-  apiKey: process.env.API_KEY ?? "",
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost",
   smtp: {
     host: process.env.SMTP_HOST ?? "",

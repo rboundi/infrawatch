@@ -69,22 +69,7 @@ if [ -z "$current_key" ]; then
   ok "Generated random MASTER_KEY"
 fi
 
-# ── 4. Generate API_KEY if empty ──
-
-current_api_key=$(grep -E '^API_KEY=' "$ENV_FILE" | cut -d'=' -f2- | xargs)
-if [ -z "$current_api_key" ]; then
-  new_api_key=$(generate_secret)
-  if [[ "$(uname)" == "Darwin" ]]; then
-    sed -i '' "s|^API_KEY=.*|API_KEY=${new_api_key}|" "$ENV_FILE"
-    sed -i '' "s|^VITE_API_KEY=.*|VITE_API_KEY=${new_api_key}|" "$ENV_FILE"
-  else
-    sed -i "s|^API_KEY=.*|API_KEY=${new_api_key}|" "$ENV_FILE"
-    sed -i "s|^VITE_API_KEY=.*|VITE_API_KEY=${new_api_key}|" "$ENV_FILE"
-  fi
-  ok "Generated random API_KEY"
-fi
-
-# ── 5. Build and start ──
+# ── 4. Build and start ──
 
 info "Building and starting InfraWatch…"
 docker compose -f "$COMPOSE_FILE" up -d --build

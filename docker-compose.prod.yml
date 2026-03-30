@@ -43,7 +43,6 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       ALERT_EMAIL: ${ALERT_EMAIL:-}
-      API_KEY: ${API_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       VERSION_CHECK_INTERVAL_HOURS: ${VERSION_CHECK_INTERVAL_HOURS:-12}
       ALERT_DIGEST_HOUR: ${ALERT_DIGEST_HOUR:-8}
@@ -62,8 +61,6 @@ services:
     build:
       context: .
       dockerfile: packages/web/Dockerfile
-      args:
-        VITE_API_KEY: ${VITE_API_KEY:-}
     restart: always
     depends_on:
       api:
