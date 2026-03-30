@@ -1,10 +1,35 @@
 import axios, { AxiosError } from "axios";
+import { getSessionToken, clearSessionToken } from "../contexts/AuthContext";
 
 const api = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
 });
+
+// Attach session token if available
+api.interceptors.request.use((config) => {
+  const token = getSessionToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle 401 — redirect to login
+api.interceptors.response.use(
+  (res) => res,
+  (err: AxiosError) => {
+    if (
+      err.response?.status === 401 &&
+      !err.config?.url?.includes("/auth/login")
+    ) {
+      clearSessionToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  },
+);
 
 /** Extract a readable error message from an API error */
 function extractError(err: unknown): string {

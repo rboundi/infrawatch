@@ -1,6 +1,13 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ToastProvider } from "./components/Toast";
+import { RequireAuth } from "./components/RequireAuth";
+import { RequireAdmin } from "./components/RequireAdmin";
 import { Layout } from "./components/Layout";
+import { LoginPage } from "./pages/LoginPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
+import { SessionsPage } from "./pages/SessionsPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { HostsPage } from "./pages/HostsPage";
 import { AlertsPage } from "./pages/AlertsPage";
@@ -31,26 +38,56 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<OverviewPage />} />
-            <Route path="changes" element={<ChangesPage />} />
-            <Route path="hosts" element={<HostsPage />} />
-            <Route path="hosts/:id" element={<HostDetailPage />} />
-            <Route path="groups" element={<GroupsPage />} />
-            <Route path="groups/:id" element={<GroupDetailPage />} />
-            <Route path="dependencies" element={<DependenciesPage />} />
-            <Route path="compliance" element={<CompliancePage />} />
-            <Route path="discovery" element={<DiscoveryPage />} />
-            <Route path="alerts" element={<AlertsPage />} />
-            <Route path="eol" element={<EolPage />} />
-            <Route path="reports" element={<ReportsPage />} />
-            <Route path="settings/notifications" element={<NotificationsPage />} />
-            <Route path="targets" element={<ScanTargetsPage />} />
-            <Route path="targets/new" element={<TargetFormPage />} />
-            <Route path="targets/:id/edit" element={<TargetFormPage />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <ToastProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<LoginPage />} />
+
+              {/* Auth-required routes without sidebar (centered forms) */}
+              <Route
+                path="/change-password"
+                element={
+                  <RequireAuth>
+                    <ChangePasswordPage />
+                  </RequireAuth>
+                }
+              />
+
+              {/* Auth-required routes with sidebar layout */}
+              <Route
+                element={
+                  <RequireAuth>
+                    <Layout />
+                  </RequireAuth>
+                }
+              >
+                <Route index element={<OverviewPage />} />
+                <Route path="changes" element={<ChangesPage />} />
+                <Route path="hosts" element={<HostsPage />} />
+                <Route path="hosts/:id" element={<HostDetailPage />} />
+                <Route path="groups" element={<GroupsPage />} />
+                <Route path="groups/:id" element={<GroupDetailPage />} />
+                <Route path="dependencies" element={<DependenciesPage />} />
+                <Route path="compliance" element={<CompliancePage />} />
+                <Route path="discovery" element={<DiscoveryPage />} />
+                <Route path="alerts" element={<AlertsPage />} />
+                <Route path="eol" element={<EolPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="settings/notifications" element={<NotificationsPage />} />
+                <Route path="targets" element={<ScanTargetsPage />} />
+                <Route path="targets/new" element={<TargetFormPage />} />
+                <Route path="targets/:id/edit" element={<TargetFormPage />} />
+                <Route path="profile/sessions" element={<SessionsPage />} />
+
+                {/* Admin-only routes */}
+                <Route path="admin/users" element={<RequireAdmin><div className="text-gray-500">Users management — coming soon</div></RequireAdmin>} />
+                <Route path="admin/settings" element={<RequireAdmin><div className="text-gray-500">System settings — coming soon</div></RequireAdmin>} />
+                <Route path="admin/audit-log" element={<RequireAdmin><div className="text-gray-500">Audit log — coming soon</div></RequireAdmin>} />
+              </Route>
+            </Routes>
+          </ToastProvider>
+        </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );
