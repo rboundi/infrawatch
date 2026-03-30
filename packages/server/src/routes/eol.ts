@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type pg from "pg";
 import type { Logger } from "pino";
+import type { AuditLogger } from "../services/audit-logger.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_CATEGORIES = ["os", "runtime", "database", "webserver", "appserver", "language", "framework", "container", "other"];
@@ -9,7 +10,7 @@ function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, "\\$&");
 }
 
-export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
+export function createEolRoutes(pool: pg.Pool, _logger: Logger, audit?: AuditLogger): Router {
   const router = Router();
 
   // GET /eol/alerts — paginated, filterable
@@ -207,7 +208,17 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "EOL alert not found" });
       }
-      res.json(formatAlert(result.rows[0]));
+      const alert = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "eol.acknowledged",
+        entityType: "eol_alert",
+        entityId: id,
+        details: { productName: alert.product_name, acknowledgedBy: alert.acknowledged_by },
+        ipAddress: req.ip ?? null,
+      });
+      res.json(formatAlert(alert));
     } catch (err) {
       next(err);
     }
@@ -235,7 +246,17 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "EOL alert not found" });
       }
-      res.json(formatAlert(result.rows[0]));
+      const alert = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "eol.exempted",
+        entityType: "eol_alert",
+        entityId: id,
+        details: { productName: alert.product_name, acknowledgedBy: alert.acknowledged_by, exemptionReason: alert.exemption_reason },
+        ipAddress: req.ip ?? null,
+      });
+      res.json(formatAlert(alert));
     } catch (err) {
       next(err);
     }
@@ -295,7 +316,17 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
         [productName, productCategory, versionPattern, eolDate, lts ?? false, successorVersion ?? null, sourceUrl ?? null, notes ?? null]
       );
 
-      res.status(201).json(formatDefinition(result.rows[0]));
+      const definition = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "eol_definition.created",
+        entityType: "eol_definition",
+        entityId: definition.id,
+        details: { productName: definition.product_name, productCategory: definition.product_category, versionPattern: definition.version_pattern, eolDate: definition.eol_date },
+        ipAddress: req.ip ?? null,
+      });
+      res.status(201).json(formatDefinition(definition));
     } catch (err) {
       // Handle unique constraint violation (duplicate product_name + version_pattern)
       if (err instanceof Error && "code" in err && (err as { code: string }).code === "23505") {
@@ -337,7 +368,17 @@ export function createEolRoutes(pool: pg.Pool, _logger: Logger): Router {
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "EOL definition not found" });
       }
-      res.json(formatDefinition(result.rows[0]));
+      const definition = result.rows[0];
+      audit?.log({
+        userId: req.user?.id,
+        username: req.user?.username ?? "system",
+        action: "eol_definition.updated",
+        entityType: "eol_definition",
+        entityId: id,
+        details: { productName: definition.product_name, productCategory: definition.product_category, versionPattern: definition.version_pattern, eolDate: definition.eol_date },
+        ipAddress: req.ip ?? null,
+      });
+      res.json(formatDefinition(definition));
     } catch (err) {
       next(err);
     }
