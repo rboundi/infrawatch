@@ -56,7 +56,7 @@ export class ScanOrchestrator {
   }
 
   /**
-   * Start the orchestrator. Runs an immediate check, then checks on interval.
+   * Start the orchestrator. Recovers stale scans, runs an immediate check, then checks on interval.
    */
   start(): void {
     if (this.timer) return;
@@ -66,9 +66,47 @@ export class ScanOrchestrator {
       "Scan orchestrator starting"
     );
 
-    // Run immediately, then on interval
-    this.tick();
-    this.timer = setInterval(() => this.tick(), this.checkIntervalMs);
+    // Recover any scans left in 'running' state from a previous server instance
+    this.recoverStaleScans().then(() => {
+      // Run immediately, then on interval
+      this.tick();
+      this.timer = setInterval(() => this.tick(), this.checkIntervalMs);
+    });
+  }
+
+  /**
+   * Mark any scan_logs and scan_targets stuck in 'running' state as failed.
+   * This happens when the server restarts while scans are in-flight.
+   */
+  private async recoverStaleScans(): Promise<void> {
+    try {
+      const staleLogResult = await this.pool.query(
+        `UPDATE scan_logs
+         SET status = 'failed', completed_at = NOW(),
+             error_message = 'Scan interrupted by server restart'
+         WHERE status = 'running'
+         RETURNING id, scan_target_id`
+      );
+
+      if (staleLogResult.rowCount && staleLogResult.rowCount > 0) {
+        const targetIds = [...new Set(staleLogResult.rows.map(r => r.scan_target_id))];
+        await this.pool.query(
+          `UPDATE scan_targets
+           SET last_scan_status = 'failed',
+               last_scan_error = 'Scan interrupted by server restart',
+               updated_at = NOW()
+           WHERE id = ANY($1) AND last_scan_status = 'running'`,
+          [targetIds]
+        );
+
+        this.logger.warn(
+          { count: staleLogResult.rowCount, scanLogIds: staleLogResult.rows.map(r => r.id) },
+          `Recovered ${staleLogResult.rowCount} stale scan(s) from previous server instance`
+        );
+      }
+    } catch (err) {
+      this.logger.error({ err }, "Failed to recover stale scans on startup");
+    }
   }
 
   /**
