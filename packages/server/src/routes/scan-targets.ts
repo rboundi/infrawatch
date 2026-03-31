@@ -13,6 +13,16 @@ import type { ScanLogger } from "../services/scan-logger.js";
 // Track running scans so they can be cancelled
 const runningScans = new Map<string, AbortController>();
 
+const TYPE_LABELS: Record<string, string> = {
+  ssh_linux: "SSH (Linux)",
+  winrm: "WinRM",
+  kubernetes: "Kubernetes",
+  aws: "AWS",
+  vmware: "VMware",
+  docker: "Docker",
+  network_discovery: "Network Discovery",
+};
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validateIdParam(req: Request, res: Response): boolean {
@@ -238,10 +248,14 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
     }
   });
 
-  // ─── POST /api/v1/targets/:id/test ───
-  router.post("/:id/test", async (req: Request, res: Response) => {
+  // ─── GET /api/v1/targets/:id/test/stream ───
+  // SSE endpoint that streams real-time progress during connection testing
+  router.get("/:id/test/stream", async (req: Request, res: Response) => {
     if (!validateIdParam(req, res)) return;
     const id = req.params.id as string;
+
+    let headersSent = false;
+
     try {
       const target = await getTargetWithConfig(pool, id);
       if (!target) {
@@ -249,52 +263,60 @@ export function createScanTargetRoutes(pool: pg.Pool, logger: Logger, audit?: Au
         return;
       }
 
+      // Set SSE headers
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      res.flushHeaders();
+      headersSent = true;
+
+      let aborted = false;
+      req.on("close", () => { aborted = true; });
+
+      const send = (event: string, data: Record<string, unknown>) => {
+        if (!aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
       const start = performance.now();
 
-      // Network discovery: quick ping scan instead of full nmap scan
       if (target.type === "network_discovery") {
+        await testNetworkDiscoveryStreamed(target.connectionConfig, send, () => aborted);
+      } else {
+        send("step", { message: `Decrypting credentials for ${TYPE_LABELS[target.type] ?? target.type} target...`, level: "info" });
+        send("step", { message: `Creating ${target.type} scanner...`, level: "info" });
+
+        const scanner = createScanner(target.type);
+        send("step", { message: `Connecting to "${target.name}"...`, level: "info" });
+
         try {
-          const result = await testNetworkDiscovery(target.connectionConfig);
+          await scanner.scan({
+            type: target.type,
+            connectionConfig: target.connectionConfig,
+          });
           const latencyMs = Math.round(performance.now() - start);
-          audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.test_connection", entityType: "scan_target", entityId: id, details: { success: true, latencyMs, ...result }, ipAddress: req.ip ?? null });
-          res.json({ success: true, message: result.message, latencyMs });
+          send("step", { message: "Connection successful", level: "info" });
+          audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.test_connection", entityType: "scan_target", entityId: id, details: { success: true, latencyMs }, ipAddress: req.ip ?? null });
+          send("result", { success: true, message: `Successfully connected to ${target.type} target`, latencyMs });
         } catch (scanErr) {
           const latencyMs = Math.round(performance.now() - start);
-          const message = scanErr instanceof Error ? scanErr.message : "Test failed";
-          res.json({ success: false, message, latencyMs });
+          const message = scanErr instanceof Error ? scanErr.message : "Connection failed";
+          send("step", { message: `Error: ${message}`, level: "error" });
+          send("result", { success: false, message, latencyMs });
         }
-        return;
       }
 
-      const scanner = createScanner(target.type);
-
-      try {
-        await scanner.scan({
-          type: target.type,
-          connectionConfig: target.connectionConfig,
-        });
-        const latencyMs = Math.round(performance.now() - start);
-
-        audit?.log({ userId: req.user?.id, username: req.user?.username ?? "system", action: "scan.test_connection", entityType: "scan_target", entityId: id, details: { success: true, latencyMs }, ipAddress: req.ip ?? null });
-        res.json({
-          success: true,
-          message: `Successfully connected to ${target.type} target`,
-          latencyMs,
-        });
-      } catch (scanErr) {
-        const latencyMs = Math.round(performance.now() - start);
-        const message =
-          scanErr instanceof Error ? scanErr.message : "Connection failed";
-
-        res.json({
-          success: false,
-          message,
-          latencyMs,
-        });
-      }
+      send("done", {});
+      res.end();
     } catch (err) {
       logger.error({ err }, "Failed to test scan target");
-      res.status(500).json({ error: "Failed to test scan target" });
+      if (!headersSent) {
+        res.status(500).json({ error: "Failed to test scan target" });
+      } else {
+        res.end();
+      }
     }
   });
 
@@ -489,55 +511,84 @@ async function runScanAsync(
   }
 }
 
-/**
- * Quick test for network discovery: validates config, checks nmap is available,
- * and runs a fast ping scan (-sn) on the first subnet to count reachable hosts.
- */
-async function testNetworkDiscovery(
-  connectionConfig: Record<string, unknown>,
-): Promise<{ message: string; hostsUp: number }> {
-  const { spawn } = await import("node:child_process");
-  const subnets = connectionConfig.subnets as string[] | undefined;
+type SendFn = (event: string, data: Record<string, unknown>) => void;
 
+/**
+ * Streamed test for network discovery: validates config, checks nmap,
+ * and runs a fast ping scan, emitting SSE progress events along the way.
+ */
+async function testNetworkDiscoveryStreamed(
+  connectionConfig: Record<string, unknown>,
+  send: SendFn,
+  isAborted: () => boolean,
+): Promise<void> {
+  const { spawn } = await import("node:child_process");
+  const start = performance.now();
+
+  // Step 1: Validate config
+  send("step", { message: "Validating network discovery configuration...", level: "info" });
+  const subnets = connectionConfig.subnets as string[] | undefined;
   if (!subnets || subnets.length === 0) {
-    throw new Error("No subnets configured");
+    send("step", { message: "No subnets configured", level: "error" });
+    send("result", { success: false, message: "No subnets configured", latencyMs: Math.round(performance.now() - start) });
+    return;
+  }
+  send("step", { message: `Found ${subnets.length} subnet(s): ${subnets.join(", ")}`, level: "info" });
+
+  if (isAborted()) return;
+
+  // Step 2: Check nmap availability
+  send("step", { message: "Checking nmap availability...", level: "info" });
+  let nmapVersion: string;
+  try {
+    nmapVersion = await new Promise<string>((resolve, reject) => {
+      const proc = spawn("nmap", ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+      let out = "";
+      proc.stdout?.on("data", (c: Buffer) => { out += c.toString(); });
+      proc.on("close", (code) => code === 0 ? resolve(out.split("\n")[0] ?? "nmap") : reject(new Error("nmap not found or not executable")));
+      proc.on("error", () => reject(new Error("nmap is not installed")));
+      setTimeout(() => { proc.kill(); reject(new Error("nmap version check timed out")); }, 5000);
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "nmap check failed";
+    send("step", { message, level: "error" });
+    send("result", { success: false, message, latencyMs: Math.round(performance.now() - start) });
+    return;
   }
 
-  // Test nmap availability
-  const nmapVersion = await new Promise<string>((resolve, reject) => {
-    const proc = spawn("nmap", ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
-    let out = "";
-    proc.stdout?.on("data", (c: Buffer) => { out += c.toString(); });
-    proc.on("close", (code) => code === 0 ? resolve(out.split("\n")[0] ?? "nmap") : reject(new Error("nmap not found or not executable")));
-    proc.on("error", () => reject(new Error("nmap is not installed")));
-    setTimeout(() => { proc.kill(); reject(new Error("nmap version check timed out")); }, 5000);
-  });
-
-  // Quick ping scan on first subnet (no port scan, just host discovery)
-  const hostsUp = await new Promise<number>((resolve, reject) => {
-    const proc = spawn("nmap", ["-sn", "-T4", "--max-retries", "1", subnets[0]], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    proc.stdout?.on("data", (c: Buffer) => { stdout += c.toString(); });
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error("Ping scan failed"));
-        return;
-      }
-      // Parse "Nmap done: 256 IP addresses (9 hosts up)"
-      const match = stdout.match(/(\d+)\s+hosts?\s+up/);
-      resolve(match ? parseInt(match[1], 10) : 0);
-    });
-    proc.on("error", (err) => reject(new Error(`Failed to run nmap: ${err.message}`)));
-    setTimeout(() => { proc.kill(); reject(new Error("Ping scan timed out (30s)")); }, 30000);
-  });
-
   const version = nmapVersion.match(/Nmap version ([\d.]+)/)?.[1] ?? "unknown";
-  return {
-    message: `nmap ${version} — ping scan found ${hostsUp} host(s) up on ${subnets[0]}${subnets.length > 1 ? ` (+${subnets.length - 1} more subnet(s))` : ""}`,
-    hostsUp,
-  };
+  send("step", { message: `nmap ${version} found`, level: "info" });
+
+  if (isAborted()) return;
+
+  // Step 3: Ping scan on first subnet
+  send("step", { message: `Running ping scan on ${subnets[0]}...`, level: "info" });
+  try {
+    const hostsUp = await new Promise<number>((resolve, reject) => {
+      const proc = spawn("nmap", ["-sn", "-T4", "--max-retries", "1", subnets[0]], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      proc.stdout?.on("data", (c: Buffer) => { stdout += c.toString(); });
+      proc.on("close", (code) => {
+        if (code !== 0) { reject(new Error("Ping scan failed")); return; }
+        const match = stdout.match(/(\d+)\s+hosts?\s+up/);
+        resolve(match ? parseInt(match[1], 10) : 0);
+      });
+      proc.on("error", (err) => reject(new Error(`Failed to run nmap: ${err.message}`)));
+      setTimeout(() => { proc.kill(); reject(new Error("Ping scan timed out (30s)")); }, 30000);
+    });
+
+    const latencyMs = Math.round(performance.now() - start);
+    const resultMsg = `nmap ${version} — ping scan found ${hostsUp} host(s) up on ${subnets[0]}${subnets.length > 1 ? ` (+${subnets.length - 1} more subnet(s))` : ""}`;
+    send("step", { message: `Found ${hostsUp} host(s) up`, level: "info" });
+    send("result", { success: true, message: resultMsg, latencyMs });
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start);
+    const message = err instanceof Error ? err.message : "Ping scan failed";
+    send("step", { message: `Error: ${message}`, level: "error" });
+    send("result", { success: false, message, latencyMs });
+  }
 }
 
 /**

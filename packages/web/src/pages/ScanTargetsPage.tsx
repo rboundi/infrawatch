@@ -20,8 +20,8 @@ import {
   useCancelScan,
   useDeleteTarget,
   useUpdateTarget,
-  useTestConnection,
 } from "../api/hooks";
+import { useTestStream } from "../hooks/useTestStream";
 import { CardSkeleton } from "../components/Skeleton";
 import { timeAgo } from "../components/timeago";
 import { ScanLogPanel } from "../components/ScanLogPanel";
@@ -104,17 +104,12 @@ export function ScanTargetsPage() {
 function TargetCard({ target }: { target: ScanTarget }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeScanLogId, setActiveScanLogId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    message: string;
-    latencyMs: number;
-  } | null>(null);
 
   const triggerScan = useTriggerScan();
   const cancelScan = useCancelScan();
   const deleteMutation = useDeleteTarget();
   const updateMutation = useUpdateTarget();
-  const testMutation = useTestConnection();
+  const testStream = useTestStream();
 
   const isRunning = target.lastScanStatus === "running";
 
@@ -131,10 +126,7 @@ function TargetCard({ target }: { target: ScanTarget }) {
   };
 
   const handleTest = () => {
-    setTestResult(null);
-    testMutation.mutate(target.id, {
-      onSuccess: (result) => setTestResult(result),
-    });
+    testStream.start(target.id);
   };
 
   const handleDelete = () => {
@@ -188,16 +180,49 @@ function TargetCard({ target }: { target: ScanTarget }) {
           </div>
         )}
 
-        {/* Test result */}
-        {testResult && (
-          <div
-            className={`rounded px-2.5 py-1.5 text-xs ${
-              testResult.success
-                ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-            }`}
-          >
-            {testResult.success ? "Connected" : "Failed"}: {testResult.message} ({testResult.latencyMs}ms)
+        {/* Test progress & result */}
+        {(testStream.isStreaming || testStream.steps.length > 0) && (
+          <div className="rounded border border-gray-200 bg-gray-50 px-2.5 py-2 dark:border-gray-600 dark:bg-gray-900/40">
+            <div className="max-h-24 space-y-0.5 overflow-y-auto">
+              {testStream.steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-xs">
+                  <span
+                    className={`mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                      step.level === "error"
+                        ? "bg-red-500"
+                        : step.level === "warn"
+                          ? "bg-amber-500"
+                          : "bg-gray-400 dark:bg-gray-500"
+                    }`}
+                  />
+                  <span
+                    className={
+                      step.level === "error"
+                        ? "text-red-700 dark:text-red-400"
+                        : "text-gray-600 dark:text-gray-400"
+                    }
+                  >
+                    {step.message}
+                  </span>
+                </div>
+              ))}
+              {testStream.isStreaming && !testStream.result && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                </div>
+              )}
+            </div>
+            {testStream.result && (
+              <div
+                className={`mt-1.5 rounded px-2 py-1 text-xs font-medium ${
+                  testStream.result.success
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                }`}
+              >
+                {testStream.result.success ? "Connected" : "Failed"}: {testStream.result.message} ({testStream.result.latencyMs}ms)
+              </div>
+            )}
           </div>
         )}
 
@@ -255,11 +280,11 @@ function TargetCard({ target }: { target: ScanTarget }) {
         )}
         <button
           onClick={handleTest}
-          disabled={testMutation.isPending}
+          disabled={testStream.isStreaming}
           className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
           title="Test Connection"
         >
-          {testMutation.isPending ? (
+          {testStream.isStreaming ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Zap className="h-3.5 w-3.5" />

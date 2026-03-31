@@ -254,17 +254,47 @@ describe("POST /api/v1/targets/:id/scan (trigger)", () => {
   });
 });
 
-describe("POST /api/v1/targets/:id/test (test connection)", () => {
-  it("should return failure result without crashing", async () => {
+describe("GET /api/v1/targets/:id/test/stream (test connection SSE)", () => {
+  it("should stream progress steps and a result without crashing", async () => {
     const target = await createTestScanTarget({ name: "TestMe" });
 
     const res = await api()
-      .post(`/api/v1/targets/${target.id}/test`).set(h());
+      .get(`/api/v1/targets/${target.id}/test/stream`).set(h())
+      .buffer(true)
+      .parse((res, cb) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => cb(null, data));
+      });
 
-    // Should return a structured response, not a 500 crash
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("success");
-    expect(typeof res.body.message).toBe("string");
-    expect(typeof res.body.latencyMs).toBe("number");
+
+    // Parse SSE events from the raw response body
+    const body = res.body as string;
+    const events: { event: string; data: string }[] = [];
+    const blocks = body.split("\n\n").filter(Boolean);
+    for (const block of blocks) {
+      const eventMatch = block.match(/^event:\s*(.+)$/m);
+      const dataMatch = block.match(/^data:\s*(.+)$/m);
+      if (eventMatch && dataMatch) {
+        events.push({ event: eventMatch[1], data: dataMatch[1] });
+      }
+    }
+
+    // Should have at least one step event
+    const steps = events.filter(e => e.event === "step");
+    expect(steps.length).toBeGreaterThan(0);
+
+    // Should have a result event
+    const resultEvent = events.find(e => e.event === "result");
+    expect(resultEvent).toBeDefined();
+    const result = JSON.parse(resultEvent!.data);
+    expect(result).toHaveProperty("success");
+    expect(typeof result.message).toBe("string");
+    expect(typeof result.latencyMs).toBe("number");
+
+    // Should end with a done event
+    const doneEvent = events.find(e => e.event === "done");
+    expect(doneEvent).toBeDefined();
   });
 });
