@@ -6,6 +6,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Clock,
   Server,
   Package,
@@ -63,6 +64,9 @@ export function HostDetailPage() {
   return (
     <div className="space-y-6">
       <HostHeader host={host} hostId={id!} />
+
+      {/* Compliance breakdown */}
+      <ComplianceBreakdown hostId={id!} />
 
       {/* Remediation Plan button */}
       {hasOpenAlerts && (
@@ -936,6 +940,75 @@ function HostDetailSkeleton() {
           <TableSkeleton rows={8} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Compliance Breakdown ───
+
+const FACTOR_LABELS: Record<string, string> = {
+  packageCurrency: "Package Currency",
+  eolStatus: "EOL Status",
+  alertResolution: "Alert Resolution",
+  scanFreshness: "Scan Freshness",
+  serviceHealth: "Service Health",
+};
+
+const SCORE_BAR_COLOR = (pct: number) =>
+  pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-blue-500" : pct >= 50 ? "bg-yellow-500" : pct >= 30 ? "bg-orange-500" : "bg-red-500";
+
+function ComplianceBreakdown({ hostId }: { hostId: string }) {
+  const compliance = useComplianceHostDetail(hostId);
+  const [open, setOpen] = useState(false);
+
+  if (!compliance.data?.breakdown) return null;
+
+  const bd = compliance.data.breakdown;
+  const factors = [
+    { key: "packageCurrency", score: bd.packageCurrency.score, max: bd.packageCurrency.maxScore },
+    { key: "eolStatus", score: bd.eolStatus.score, max: bd.eolStatus.maxScore },
+    { key: "alertResolution", score: bd.alertResolution.score, max: bd.alertResolution.maxScore },
+    { key: "scanFreshness", score: bd.scanFreshness.score, max: bd.scanFreshness.maxScore },
+    { key: "serviceHealth", score: bd.serviceHealth.score, max: bd.serviceHealth.maxScore },
+  ];
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-4 py-3"
+      >
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-gray-400" />
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Compliance Breakdown
+          </span>
+          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+            {compliance.data.score}/100
+          </span>
+        </div>
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-700">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+            {factors.map((f) => {
+              const pct = f.max > 0 ? Math.round((f.score / f.max) * 100) : 0;
+              return (
+                <div key={f.key}>
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>{FACTOR_LABELS[f.key]}</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{f.score}/{f.max}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
+                    <div className={`h-1.5 rounded-full ${SCORE_BAR_COLOR(pct)}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

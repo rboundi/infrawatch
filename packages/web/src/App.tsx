@@ -18,8 +18,6 @@ import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { EolPage } from "./pages/EolPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
-import { GroupsPage } from "./pages/GroupsPage";
-import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
@@ -68,8 +66,8 @@ export default function App() {
                 <Route path="changes" element={<Navigate to="/" replace />} />
                 <Route path="hosts" element={<HostsPage />} />
                 <Route path="hosts/:id" element={<HostDetailPage />} />
-                <Route path="groups" element={<GroupsPage />} />
-                <Route path="groups/:id" element={<GroupDetailPage />} />
+                <Route path="groups" element={<Navigate to="/hosts" replace />} />
+                <Route path="groups/:id" element={<Navigate to="/hosts" replace />} />
                 <Route path="dependencies" element={<DependenciesPage />} />
                 <Route path="compliance" element={<Navigate to="/" replace />} />
                 <Route path="discovery" element={<DiscoveryPage />} />

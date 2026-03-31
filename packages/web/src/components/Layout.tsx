@@ -12,7 +12,6 @@ import {
   Hourglass,
   FileText,
   BellRing,
-  Layers,
   Network,
   Settings,
   Users,
@@ -44,7 +43,6 @@ const primaryNav: NavItem[] = [
 
 // Tier 2 — collapsible "Setup" section
 const setupNav: NavItem[] = [
-  { to: "/groups", label: "Groups", icon: Layers },
   { to: "/dependencies", label: "Dependencies", icon: Network },
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
   { to: "/reports", label: "Reports", icon: FileText },
