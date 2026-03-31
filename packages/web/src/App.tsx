@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./components/Toast";
@@ -15,14 +15,12 @@ import { ScanTargetsPage } from "./pages/ScanTargetsPage";
 import { HostDetailPage } from "./pages/HostDetailPage";
 import { TargetFormPage } from "./pages/TargetFormPage";
 import { DiscoveryPage } from "./pages/DiscoveryPage";
-import { ChangesPage } from "./pages/ChangesPage";
 import { EolPage } from "./pages/EolPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
-import { CompliancePage } from "./pages/CompliancePage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
@@ -67,13 +65,13 @@ export default function App() {
                 }
               >
                 <Route index element={<OverviewPage />} />
-                <Route path="changes" element={<ChangesPage />} />
+                <Route path="changes" element={<Navigate to="/" replace />} />
                 <Route path="hosts" element={<HostsPage />} />
                 <Route path="hosts/:id" element={<HostDetailPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="groups/:id" element={<GroupDetailPage />} />
                 <Route path="dependencies" element={<DependenciesPage />} />
-                <Route path="compliance" element={<CompliancePage />} />
+                <Route path="compliance" element={<Navigate to="/" replace />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
                 <Route path="alerts" element={<AlertsPage />} />
                 <Route path="eol" element={<EolPage />} />

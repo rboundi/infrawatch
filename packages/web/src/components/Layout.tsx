@@ -9,13 +9,11 @@ import {
   Scan,
   Sun,
   Moon,
-  GitCommitHorizontal,
   Hourglass,
   FileText,
   BellRing,
   Layers,
   Network,
-  Shield,
   Settings,
   Users,
   ScrollText,
@@ -46,10 +44,8 @@ const primaryNav: NavItem[] = [
 
 // Tier 2 — collapsible "Setup" section
 const setupNav: NavItem[] = [
-  { to: "/changes", label: "Changes", icon: GitCommitHorizontal },
   { to: "/groups", label: "Groups", icon: Layers },
   { to: "/dependencies", label: "Dependencies", icon: Network },
-  { to: "/compliance", label: "Compliance", icon: Shield },
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/targets", label: "Scan Targets", icon: Radar },
