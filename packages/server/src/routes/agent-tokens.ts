@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import type { AgentTokenService } from "../services/agent-token-service.js";
 import type { AuditLogger } from "../services/audit-logger.js";
 import type { SettingsService } from "../services/settings-service.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,6 +54,9 @@ export function createAgentTokenRoutes(
   settingsService?: SettingsService,
 ): Router {
   const router = Router();
+
+  // All agent-token management routes require admin role
+  router.use(requireAdmin);
 
   // ─── POST /api/v1/agent-tokens ───
   router.post("/", async (req: Request, res: Response) => {

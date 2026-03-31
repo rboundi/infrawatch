@@ -37,6 +37,14 @@ import pino from "pino";
 const logger = pino({ level: "silent" });
 
 let app: express.Express | null = null;
+let _settingsService: SettingsService | null = null;
+
+export function getTestSettingsService(): SettingsService {
+  if (!_settingsService) {
+    getTestApp(); // ensure app is initialized
+  }
+  return _settingsService!;
+}
 
 export function getTestApp(): express.Express {
   if (app) return app;
@@ -49,6 +57,7 @@ export function getTestApp(): express.Express {
 
   // Services
   const settingsService = new SettingsService(pool, logger);
+  _settingsService = settingsService;
   const userService = new UserService(pool, logger, settingsService);
   const sessionService = new SessionService(pool, logger, settingsService);
   const audit = new AuditLogger(pool, logger);
@@ -100,4 +109,5 @@ export function getTestApp(): express.Express {
  */
 export function resetTestApp(): void {
   app = null;
+  _settingsService = null;
 }
