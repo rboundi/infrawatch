@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Server,
@@ -21,39 +22,74 @@ import {
   KeyRound,
   LogOut,
   ChevronDown,
+  ChevronRight,
   Monitor,
   Cpu,
+  Wrench,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useAuth } from "../contexts/AuthContext";
 
-const nav = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  { to: "/changes", label: "Changes", icon: GitCommitHorizontal },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+// Tier 1 — always visible
+const primaryNav: NavItem[] = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/hosts", label: "Hosts", icon: Server },
+  { to: "/alerts", label: "Alerts", icon: Bell },
+  { to: "/discovery", label: "Discovery", icon: Scan },
+];
+
+// Tier 2 — collapsible "Setup" section
+const setupNav: NavItem[] = [
+  { to: "/changes", label: "Changes", icon: GitCommitHorizontal },
   { to: "/groups", label: "Groups", icon: Layers },
   { to: "/dependencies", label: "Dependencies", icon: Network },
   { to: "/compliance", label: "Compliance", icon: Shield },
-  { to: "/discovery", label: "Discovery", icon: Scan },
-  { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/eol", label: "EOL Tracker", icon: Hourglass },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/targets", label: "Scan Targets", icon: Radar },
   { to: "/settings/notifications", label: "Notifications", icon: BellRing },
 ];
 
-const adminNav = [
+// Tier 3 — collapsible "Admin" section (admin-only)
+const adminNav: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/agents", label: "Agents", icon: Cpu },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/audit-log", label: "Audit Log", icon: ScrollText },
 ];
 
+function useSectionToggle(key: string, defaultOpen = false): [boolean, () => void] {
+  const storageKey = `iw_sidebar_${key}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored !== null ? stored === "1" : defaultOpen;
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(storageKey, next ? "1" : "0"); } catch { /* noop */ }
+      return next;
+    });
+  }, [storageKey]);
+  return [open, toggle];
+}
+
 export function Layout() {
   const [dark, setDark] = useDarkMode();
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [setupOpen, toggleSetup] = useSectionToggle("setup", false);
+  const [adminOpen, toggleAdmin] = useSectionToggle("admin", false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -74,66 +110,80 @@ export function Layout() {
     navigate("/login");
   };
 
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
+      isActive
+        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+    }`;
+
+  const subNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-2.5 rounded-md px-3 py-1.5 pl-9 text-[13px] font-medium transition-colors ${
+      isActive
+        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+        : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+    }`;
+
+  const sectionBtnClass =
+    "flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300";
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
-      <aside className="flex w-56 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex h-14 items-center gap-2 border-b border-gray-200 px-4 dark:border-gray-700">
+      <aside className="flex w-60 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex h-16 items-center gap-2 border-b border-gray-200 px-4 dark:border-gray-700">
           <Radar className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
             InfraWatch
           </span>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
-          {nav.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                }`
-              }
-            >
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+          {/* Tier 1 — Primary */}
+          {primaryNav.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} end={to === "/"} className={navLinkClass}>
               <Icon className="h-4 w-4" />
               {label}
             </NavLink>
           ))}
 
-          {/* Admin section */}
+          {/* Tier 2 — Setup */}
+          <div className="pt-4">
+            <button onClick={toggleSetup} className={sectionBtnClass}>
+              <span className="flex items-center gap-2">
+                <Wrench className="h-3.5 w-3.5" />
+                Setup
+              </span>
+              <ChevronRight
+                className={`h-3.5 w-3.5 transition-transform ${setupOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+          </div>
+          {setupOpen &&
+            setupNav.map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to} className={subNavLinkClass}>
+                <Icon className="h-4 w-4" />
+                {label}
+              </NavLink>
+            ))}
+
+          {/* Tier 3 — Admin */}
           {isAdmin && (
             <>
-              <div className="pt-3">
-                <button
-                  onClick={() => setAdminOpen(!adminOpen)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                >
+              <div className="pt-4">
+                <button onClick={toggleAdmin} className={sectionBtnClass}>
                   <span className="flex items-center gap-2">
                     <Settings className="h-3.5 w-3.5" />
                     Admin
                   </span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 transition-transform ${adminOpen ? "rotate-180" : ""}`}
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 transition-transform ${adminOpen ? "rotate-90" : ""}`}
                   />
                 </button>
               </div>
               {adminOpen &&
                 adminNav.map(({ to, label, icon: Icon }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2.5 rounded-md px-3 py-2 pl-8 text-sm font-medium transition-colors ${
-                        isActive
-                          ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                      }`
-                    }
-                  >
+                  <NavLink key={to} to={to} className={subNavLinkClass}>
                     <Icon className="h-4 w-4" />
                     {label}
                   </NavLink>
