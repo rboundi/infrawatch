@@ -99,6 +99,8 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
            h.last_seen_at,
            h.first_seen_at,
            h.status,
+           h.reporting_method,
+           h.agent_version,
            st.name AS scan_target_name,
            (SELECT COUNT(*) FROM discovered_packages dp WHERE dp.host_id = h.id AND dp.removed_at IS NULL) AS package_count,
            (SELECT COUNT(*) FROM alerts a WHERE a.host_id = h.id AND a.acknowledged = false) AS open_alert_count

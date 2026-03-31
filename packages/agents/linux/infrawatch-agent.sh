@@ -701,4 +701,9 @@ main() {
     exit "$exit_code"
 }
 
+# Allow sourcing for testing without executing
+if [ "${INFRAWATCH_TEST:-}" = "1" ]; then
+    return 0 2>/dev/null || true
+fi
+
 main "$@"
