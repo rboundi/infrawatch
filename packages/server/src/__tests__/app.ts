@@ -86,8 +86,8 @@ export function getTestApp(): express.Express {
   app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
   app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
   app.use("/api/v1/settings", requireAuth, createSettingsRoutes(pool, logger, settingsService, audit));
-  app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit));
-  app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit));
+  app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit, settingsService));
+  app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit, settingsService));
 
   // Error handler
   app.use(createErrorHandler(logger));

@@ -8,6 +8,7 @@ import {
   GitCommitHorizontal,
   Hourglass,
   Shield,
+  Cpu,
 } from "lucide-react";
 import { useOverviewStats, useAlerts, useAcknowledgeAlert, useChanges, useEolAlertsSummary, useComplianceFleet } from "../api/hooks";
 import { SeverityBadge } from "../components/SeverityBadge";
@@ -84,6 +85,16 @@ export function OverviewPage() {
             }
             iconColor="text-purple-600 dark:text-purple-400"
           />
+          {stats.data.agentStatus && (
+            <StatCard
+              icon={Cpu}
+              label="Agent Hosts"
+              value={stats.data.agentStatus.total}
+              sub={`${stats.data.agentStatus.healthy} healthy${stats.data.agentStatus.stale > 0 ? ` · ${stats.data.agentStatus.stale} stale` : ""}${stats.data.agentStatus.offline > 0 ? ` · ${stats.data.agentStatus.offline} offline` : ""}`}
+              subColor={stats.data.agentStatus.stale + stats.data.agentStatus.offline > 0 ? "text-amber-600 dark:text-amber-400" : undefined}
+              iconColor="text-teal-600 dark:text-teal-400"
+            />
+          )}
         </div>
       ) : null}
 

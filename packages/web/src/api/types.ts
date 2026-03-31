@@ -18,6 +18,12 @@ export interface OverviewStats {
   lastScanAt: string | null;
   networkDiscoveryHosts: number;
   autoPromotedTargets: number;
+  agentStatus?: {
+    healthy: number;
+    stale: number;
+    offline: number;
+    total: number;
+  };
   groups?: Array<{
     id: string;
     name: string;

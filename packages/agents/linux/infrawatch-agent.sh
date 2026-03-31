@@ -15,6 +15,7 @@ COLLECT_CONNECTIONS="${COLLECT_CONNECTIONS:-false}"
 COLLECT_DOCKER="${COLLECT_DOCKER:-true}"
 COLLECT_PIP="${COLLECT_PIP:-false}"
 COLLECT_NPM="${COLLECT_NPM:-false}"
+INFRAWATCH_AUTO_UPDATE="${INFRAWATCH_AUTO_UPDATE:-true}"
 
 # Load config from file if it exists (env vars already set take precedence)
 if [ -f "$CONFIG_FILE" ]; then
@@ -598,6 +599,7 @@ send_report() {
 
     if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ] 2>/dev/null; then
         log "INFO" "Report sent successfully (HTTP ${http_code}): ${body}"
+        REPORT_RESPONSE="$body"
         return 0
     else
         log "ERROR" "Report failed (HTTP ${http_code}): ${body}"
@@ -605,10 +607,79 @@ send_report() {
     fi
 }
 
+# ─── Self-Update ───
+
+check_update() {
+    [ -z "${REPORT_RESPONSE:-}" ] && return
+
+    # Parse updateAvailable from JSON response (simple grep — no jq dependency)
+    local update_available
+    update_available="$(echo "$REPORT_RESPONSE" | grep -o '"updateAvailable":[a-z]*' | cut -d: -f2)" || true
+
+    if [ "$update_available" != "true" ]; then
+        return
+    fi
+
+    local latest_version
+    latest_version="$(echo "$REPORT_RESPONSE" | grep -o '"latestAgentVersion":"[^"]*"' | cut -d'"' -f4)" || true
+    local update_url
+    update_url="$(echo "$REPORT_RESPONSE" | grep -o '"updateUrl":"[^"]*"' | cut -d'"' -f4)" || true
+
+    if [ -z "$update_url" ]; then
+        log "INFO" "Update available (v${latest_version}) but no update URL provided"
+        return
+    fi
+
+    if [ "$INFRAWATCH_AUTO_UPDATE" != "true" ]; then
+        log "INFO" "Update available: v${AGENT_VERSION} -> v${latest_version} (auto-update disabled)"
+        return
+    fi
+
+    log "INFO" "Downloading agent update v${latest_version} from ${update_url}"
+
+    local tmp_script="/tmp/infrawatch-agent-new.sh"
+    if ! curl -s -S "$update_url" \
+        -H "Authorization: Bearer ${INFRAWATCH_TOKEN}" \
+        -o "$tmp_script" \
+        --max-time 30 2>/dev/null; then
+        log "ERROR" "Failed to download agent update"
+        rm -f "$tmp_script"
+        return
+    fi
+
+    # Basic sanity check — must start with shebang
+    local first_line
+    first_line="$(head -1 "$tmp_script")"
+    if [ "${first_line#\#!}" = "$first_line" ]; then
+        log "ERROR" "Downloaded script failed sanity check (missing shebang): ${first_line}"
+        rm -f "$tmp_script"
+        return
+    fi
+
+    # Determine the current script location
+    local script_path
+    script_path="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+    if [ ! -w "$script_path" ] && [ -f "/usr/local/bin/infrawatch-agent.sh" ]; then
+        script_path="/usr/local/bin/infrawatch-agent.sh"
+    fi
+
+    # Replace the current script
+    chmod +x "$tmp_script"
+    if cp "$tmp_script" "$script_path"; then
+        log "INFO" "Agent updated from v${AGENT_VERSION} to v${latest_version}"
+    else
+        log "ERROR" "Failed to replace agent script at ${script_path}"
+    fi
+
+    rm -f "$tmp_script"
+}
+
 # ─── Main ───
 
 main() {
     log "INFO" "InfraWatch Agent v${AGENT_VERSION} starting"
+
+    REPORT_RESPONSE=""
 
     collect_os_info
     collect_packages
@@ -622,6 +693,7 @@ main() {
     local exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         log "INFO" "Agent run completed successfully"
+        check_update
     else
         log "ERROR" "Agent run failed"
     fi

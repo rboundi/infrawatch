@@ -25,6 +25,7 @@ $ErrorActionPreference = "Stop"
 $AgentVersion = "1.0.0"
 $ConfigPath = "C:\ProgramData\InfraWatch\agent.conf"
 $LogPath = "C:\ProgramData\InfraWatch\agent.log"
+$AutoUpdate = $true
 
 # ─── Logging ───
 
@@ -51,6 +52,7 @@ function Load-Config {
             if (-not $script:Token -and $conf.token) { $script:Token = $conf.token }
             if ($conf.collectConnections) { $script:CollectConnections = $conf.collectConnections }
             if ($conf.collectDocker) { $script:CollectDocker = $conf.collectDocker }
+            if ($null -ne $conf.autoUpdate) { $script:AutoUpdate = $conf.autoUpdate }
         } catch {
             Write-Log "WARN" "Failed to parse config file: $_"
         }
@@ -406,7 +408,7 @@ function Send-Report {
 
         $response = Invoke-RestMethod -Uri $endpoint -Method POST -Headers $headers -Body $jsonPayload -TimeoutSec 30
         Write-Log "INFO" "Report sent successfully: hostname=$($response.hostname), packages=$($response.packagesCount), services=$($response.servicesCount)"
-        return $true
+        return $response
     } catch {
         $statusCode = $null
         $responseBody = $null
@@ -419,8 +421,62 @@ function Send-Report {
             } catch { }
         }
         Write-Log "ERROR" "Report failed (HTTP $statusCode): $responseBody - $_"
-        return $false
+        return $null
     }
+}
+
+# ─── Self-Update ───
+
+function Check-Update {
+    param($Response)
+
+    if (-not $Response -or -not $Response.updateAvailable) { return }
+
+    $latestVersion = $Response.latestAgentVersion
+    $updateUrl = $Response.updateUrl
+
+    if (-not $updateUrl) {
+        Write-Log "INFO" "Update available (v$latestVersion) but no update URL provided"
+        return
+    }
+
+    if ($script:AutoUpdate -ne $true -and $script:AutoUpdate -ne "true") {
+        Write-Log "INFO" "Update available: v$AgentVersion -> v$latestVersion (auto-update disabled)"
+        return
+    }
+
+    Write-Log "INFO" "Downloading agent update v$latestVersion from $updateUrl"
+
+    $tmpScript = "$env:TEMP\infrawatch-agent-new.ps1"
+    try {
+        $headers = @{ "Authorization" = "Bearer $Token" }
+        Invoke-WebRequest -Uri $updateUrl -Headers $headers -OutFile $tmpScript -TimeoutSec 30 -UseBasicParsing
+    } catch {
+        Write-Log "ERROR" "Failed to download agent update: $_"
+        Remove-Item -Path $tmpScript -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    # Basic sanity check — must contain PowerShell content
+    $firstLine = Get-Content $tmpScript -First 1 -ErrorAction SilentlyContinue
+    if ($firstLine -notmatch "Requires|param|function|<#") {
+        Write-Log "ERROR" "Downloaded script failed sanity check: $firstLine"
+        Remove-Item -Path $tmpScript -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    # Replace the agent script
+    $installDir = "C:\ProgramData\InfraWatch"
+    $targetPath = "$installDir\infrawatch-agent.ps1"
+
+    try {
+        Copy-Item -Path $tmpScript -Destination $targetPath -Force
+        Write-Log "INFO" "Agent updated from v$AgentVersion to v$latestVersion"
+    } catch {
+        Write-Log "ERROR" "Failed to replace agent script at ${targetPath}: $_"
+    }
+
+    Remove-Item -Path $tmpScript -Force -ErrorAction SilentlyContinue
 }
 
 # ─── Main ───
@@ -446,10 +502,11 @@ function Main {
     $packages += @($docker.packages)
     $services += @($docker.services)
 
-    $success = Send-Report -OsInfo $osInfo -Packages $packages -Services $services -Connections $connections -Metadata $metadata
+    $response = Send-Report -OsInfo $osInfo -Packages $packages -Services $services -Connections $connections -Metadata $metadata
 
-    if ($success) {
+    if ($response) {
         Write-Log "INFO" "Agent run completed successfully"
+        Check-Update -Response $response
         exit 0
     } else {
         Write-Log "ERROR" "Agent run failed"

@@ -13,10 +13,13 @@ import {
   Clock,
   Shield,
   Server,
+  Activity,
+  Filter,
 } from "lucide-react";
 import {
   useAgentTokens,
   useAgentToken,
+  useAgentHealth,
   useCreateAgentToken,
   useUpdateAgentToken,
   useRevokeAgentToken,
@@ -24,6 +27,7 @@ import {
 } from "../../api/agent-hooks";
 import type {
   AgentToken,
+  AgentHealthHost,
   CreateAgentTokenData,
 } from "../../api/agent-hooks";
 import { useToast } from "../../components/Toast";
@@ -478,6 +482,121 @@ function TokenDetailModal({
 
 // ─── Setup Instructions ───
 
+// ─── Agent Health Section ───
+
+const HEALTH_COLORS: Record<string, string> = {
+  healthy: "text-green-600 dark:text-green-400",
+  stale: "text-amber-600 dark:text-amber-400",
+  offline: "text-red-600 dark:text-red-400",
+};
+
+const HEALTH_DOT_COLORS: Record<string, string> = {
+  healthy: "bg-green-500",
+  stale: "bg-amber-500",
+  offline: "bg-red-500",
+};
+
+function AgentHealthSection() {
+  const { data, isLoading } = useAgentHealth();
+  const [showUnhealthyOnly, setShowUnhealthyOnly] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <Activity className="h-4 w-4" />
+          Agent Health
+        </h3>
+        <TableSkeleton rows={3} />
+      </div>
+    );
+  }
+
+  if (!data || data.summary.total === 0) return null;
+
+  const filteredHosts = showUnhealthyOnly
+    ? data.hosts.filter((h) => h.healthStatus !== "healthy")
+    : data.hosts;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-700">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <Activity className="h-4 w-4" />
+          Agent Health
+          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+            {data.summary.healthy} healthy · {data.summary.stale} stale · {data.summary.offline} offline
+          </span>
+        </h3>
+        <button
+          onClick={() => setShowUnhealthyOnly(!showUnhealthyOnly)}
+          className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+            showUnhealthyOnly
+              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+              : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          }`}
+        >
+          <Filter className="h-3 w-3" />
+          {showUnhealthyOnly ? "Showing unhealthy" : "Show unhealthy only"}
+        </button>
+      </div>
+
+      {filteredHosts.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <th className="px-4 py-2.5">Hostname</th>
+                <th className="px-4 py-2.5">Agent Version</th>
+                <th className="px-4 py-2.5">Last Report</th>
+                <th className="px-4 py-2.5">Report IP</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Token</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {filteredHosts.map((host) => (
+                <tr
+                  key={host.id}
+                  className="text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700/50"
+                >
+                  <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-gray-100">
+                    {host.hostname}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-500 dark:text-gray-400">
+                    {host.agentVersion ?? "—"}
+                  </td>
+                  <td className={`px-4 py-2.5 ${HEALTH_COLORS[host.healthStatus]}`}>
+                    {timeAgo(host.lastSeenAt)}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-500 dark:text-gray-400">
+                    {host.lastReportIp ?? "—"}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${HEALTH_COLORS[host.healthStatus]}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${HEALTH_DOT_COLORS[host.healthStatus]}`} />
+                      {host.healthStatus.charAt(0).toUpperCase() + host.healthStatus.slice(1)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+                    {host.tokenName ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          {showUnhealthyOnly ? "All agents are healthy." : "No agent hosts found."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Setup Instructions ───
+
 function SetupInstructions({ serverUrl }: { serverUrl: string }) {
   const [platform, setPlatform] = useState<"linux" | "windows">("linux");
   const [copied, setCopied] = useState(false);
@@ -722,6 +841,9 @@ export function AgentsPage() {
           </div>
         )}
       </div>
+
+      {/* Agent Health */}
+      <AgentHealthSection />
 
       {/* Setup Instructions */}
       <SetupInstructions serverUrl="" />

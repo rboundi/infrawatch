@@ -115,6 +115,35 @@ export function useRotateAgentToken() {
   });
 }
 
+// ─── Health ───
+
+export interface AgentHealthHost {
+  id: string;
+  hostname: string;
+  agentVersion: string | null;
+  lastSeenAt: string;
+  lastReportIp: string | null;
+  status: string;
+  healthStatus: "healthy" | "stale" | "offline";
+  tokenName: string | null;
+  tokenId: string | null;
+}
+
+export interface AgentHealthResponse {
+  hosts: AgentHealthHost[];
+  summary: { healthy: number; stale: number; offline: number; total: number };
+  thresholds: { staleHours: number; offlineHours: number };
+}
+
+export function useAgentHealth() {
+  return useQuery({
+    queryKey: ["admin", "agent-tokens", "health"],
+    queryFn: () => get<AgentHealthResponse>("/agent-tokens/health/hosts"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
 export function useRevokeAgentToken() {
   const qc = useQueryClient();
   return useMutation({

@@ -3,6 +3,7 @@ import type pg from "pg";
 import type { Logger } from "pino";
 import type { AgentTokenService } from "../services/agent-token-service.js";
 import type { AuditLogger } from "../services/audit-logger.js";
+import type { SettingsService } from "../services/settings-service.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +50,7 @@ export function createAgentTokenRoutes(
   logger: Logger,
   tokenService: AgentTokenService,
   audit?: AuditLogger,
+  settingsService?: SettingsService,
 ): Router {
   const router = Router();
 
@@ -257,6 +259,62 @@ export function createAgentTokenRoutes(
     } catch (err) {
       logger.error({ err }, "Failed to revoke agent token");
       res.status(500).json({ error: "Failed to revoke agent token" });
+    }
+  });
+
+  // ─── GET /api/v1/agent-tokens/health/hosts ───
+  router.get("/health/hosts", async (_req: Request, res: Response) => {
+    try {
+      const staleThreshold = settingsService?.get<number>("agent_stale_threshold_hours") ?? 12;
+      const offlineThreshold = settingsService?.get<number>("agent_offline_alert_hours") ?? 48;
+
+      const result = await pool.query(
+        `SELECT
+           h.id,
+           h.hostname,
+           h.agent_version,
+           h.last_seen_at,
+           h.last_report_ip,
+           h.status,
+           at.name AS token_name,
+           at.id AS token_id,
+           CASE
+             WHEN h.last_seen_at >= NOW() - ($1 || ' hours')::interval THEN 'healthy'
+             WHEN h.last_seen_at >= NOW() - ($2 || ' hours')::interval THEN 'stale'
+             ELSE 'offline'
+           END AS health_status
+         FROM hosts h
+         LEFT JOIN agent_tokens at ON at.id = h.agent_token_id
+         WHERE h.reporting_method = 'agent'
+         ORDER BY h.last_seen_at ASC`,
+        [staleThreshold, offlineThreshold],
+      );
+
+      const hosts = result.rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        hostname: r.hostname,
+        agentVersion: r.agent_version,
+        lastSeenAt: r.last_seen_at,
+        lastReportIp: r.last_report_ip,
+        status: r.status,
+        healthStatus: r.health_status,
+        tokenName: r.token_name,
+        tokenId: r.token_id,
+      }));
+
+      // Summary counts
+      const healthy = hosts.filter((h) => h.healthStatus === "healthy").length;
+      const stale = hosts.filter((h) => h.healthStatus === "stale").length;
+      const offline = hosts.filter((h) => h.healthStatus === "offline").length;
+
+      res.json({
+        hosts,
+        summary: { healthy, stale, offline, total: hosts.length },
+        thresholds: { staleHours: staleThreshold, offlineHours: offlineThreshold },
+      });
+    } catch (err) {
+      logger.error({ err }, "Failed to get agent health");
+      res.status(500).json({ error: "Failed to get agent health" });
     }
   });
 

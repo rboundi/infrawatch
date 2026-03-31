@@ -9,6 +9,7 @@ import { DataIngestionService } from "../services/data-ingestion.js";
 import type { AgentTokenService } from "../services/agent-token-service.js";
 import type { GroupAssignmentService } from "../services/group-assignment.js";
 import type { AuditLogger } from "../services/audit-logger.js";
+import type { SettingsService } from "../services/settings-service.js";
 
 // In-memory rate limiter: token_id -> { count, windowStart }
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -35,6 +36,7 @@ export function createAgentReportRoutes(
   tokenService: AgentTokenService,
   groupAssignment: GroupAssignmentService,
   audit?: AuditLogger,
+  settingsService?: SettingsService,
 ): Router {
   const router = Router();
   const ingestion = new DataIngestionService(pool, logger);
@@ -186,12 +188,27 @@ export function createAgentReportRoutes(
         `Agent report processed for "${body.hostname}"`,
       );
 
+      // Check for agent update
+      const latestVersion = settingsService?.get<string>("agent_latest_version") ?? "1.0.0";
+      const autoUpdateEnabled = settingsService?.get<boolean>("agent_auto_update_enabled") ?? true;
+      const reportedVersion = body.agentVersion ?? "0.0.0";
+      const updateAvailable = latestVersion !== reportedVersion && latestVersion > reportedVersion;
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const isWindows = (body.os ?? "").toLowerCase().includes("windows");
+      const updateUrl = updateAvailable
+        ? `${baseUrl}/api/v1/agent/script/${isWindows ? "windows" : "linux"}`
+        : undefined;
+
       res.json({
         received: true,
         hostname: body.hostname,
         packagesCount: stats.packagesFound,
         servicesCount: stats.servicesFound,
         nextReportIn: "5m",
+        updateAvailable: updateAvailable && autoUpdateEnabled,
+        latestAgentVersion: latestVersion,
+        updateUrl,
       });
     } catch (err) {
       logger.error({ err }, "Failed to process agent report");

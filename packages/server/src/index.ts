@@ -47,6 +47,7 @@ import { createScanLogRoutes } from "./routes/scan-logs.js";
 import { createAgentReportRoutes } from "./routes/agent-report.js";
 import { createAgentTokenRoutes } from "./routes/agent-tokens.js";
 import { AgentTokenService } from "./services/agent-token-service.js";
+import { AgentHealthChecker } from "./services/agent-health-checker.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -188,6 +189,7 @@ const sessionService = new SessionService(pool, logger, settingsService);
 const audit = new AuditLogger(pool, logger);
 const scanLogger = new ScanLogger(pool, logger);
 const agentTokenService = new AgentTokenService(pool, logger);
+const agentHealthChecker = new AgentHealthChecker(pool, logger);
 const maintenance = new MaintenanceService(pool, logger, settingsService);
 const requireAuth = createRequireAuth(sessionService);
 
@@ -197,6 +199,7 @@ staleChecker.setSettings(settingsService);
 versionChecker.setSettings(settingsService);
 eolChecker.setSettings(settingsService);
 notificationService.setSettings(settingsService);
+agentHealthChecker.setSettings(settingsService);
 
 // Wire notification service into background services
 orchestrator.setNotificationService(notificationService);
@@ -206,6 +209,7 @@ orchestrator.setScanLogger(scanLogger);
 staleChecker.setNotificationService(notificationService);
 versionChecker.setNotificationService(notificationService);
 eolChecker.setNotificationService(notificationService);
+agentHealthChecker.setNotificationService(notificationService);
 
 // ─── Routes ───
 
@@ -229,9 +233,9 @@ app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, 
 app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
 app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
 app.use("/api/v1/settings", requireAuth, createSettingsRoutes(pool, logger, settingsService, audit));
-app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit));
+app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit, settingsService));
 // Agent report/heartbeat — NOT behind requireAuth (uses its own bearer token authentication)
-app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit));
+app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit, settingsService));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
@@ -280,6 +284,9 @@ async function start() {
 
   // Start compliance scorer
   complianceScorer.start();
+
+  // Start agent health checker
+  agentHealthChecker.start();
 
   // Start maintenance service (daily at 3 AM)
   maintenance.start();
@@ -366,6 +373,7 @@ async function start() {
       reportGenerator.stop();
       notificationService.stop();
       complianceScorer.stop();
+      agentHealthChecker.stop();
       maintenance.stop();
       clearInterval(snapshotTimer);
       clearInterval(sessionCleanupTimer);

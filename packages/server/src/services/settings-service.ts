@@ -73,6 +73,12 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
   { key: "failed_login_lock_minutes", defaultValue: 15, category: "security", valueType: "number", description: "Lock duration after failed logins (minutes)", constraints: { min: 1, max: 1440 } },
   { key: "api_rate_limit_per_minute", defaultValue: 100, category: "security", valueType: "number", description: "API requests per minute per IP", constraints: { min: 10, max: 1000 } },
 
+  // ── agents ──
+  { key: "agent_latest_version", defaultValue: "1.0.0", category: "agents", valueType: "string", description: "Latest agent version (agents compare against this)", constraints: { maxLength: 20, pattern: "^\\d+\\.\\d+\\.\\d+$" } },
+  { key: "agent_auto_update_enabled", defaultValue: true, category: "agents", valueType: "boolean", description: "Allow agents to self-update when a new version is available" },
+  { key: "agent_stale_threshold_hours", defaultValue: 12, category: "agents", valueType: "number", description: "Hours before an agent-reported host is considered stale", constraints: { min: 1, max: 168 } },
+  { key: "agent_offline_alert_hours", defaultValue: 48, category: "agents", valueType: "number", description: "Hours before an offline agent triggers a notification", constraints: { min: 6, max: 336 } },
+
   // ── maintenance ──
   { key: "change_retention_days", defaultValue: 90, category: "maintenance", valueType: "number", description: "Days to keep change events", constraints: { min: 0, max: 365 } },
   { key: "audit_log_retention_days", defaultValue: 365, category: "maintenance", valueType: "number", description: "Days to keep audit log entries", constraints: { min: 30, max: 730 } },

@@ -386,6 +386,18 @@ export function createStatsRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
         ORDER BY g.name ASC
       `);
 
+      // Agent status summary
+      const agentResult = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'active') AS agent_healthy,
+           COUNT(*) FILTER (WHERE status = 'stale') AS agent_stale,
+           COUNT(*) FILTER (WHERE status = 'decommissioned') AS agent_offline,
+           COUNT(*) AS agent_total
+         FROM hosts
+         WHERE reporting_method = 'agent'`
+      );
+      const agentRow = agentResult.rows[0];
+
       res.json({
         totalHosts: parseInt(row.total_hosts, 10),
         activeHosts: parseInt(row.active_hosts, 10),
@@ -397,6 +409,12 @@ export function createStatsRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLo
         lastScanAt: row.last_scan_at,
         networkDiscoveryHosts: parseInt(row.network_discovery_hosts, 10),
         autoPromotedTargets: parseInt(row.auto_promoted_targets, 10),
+        agentStatus: parseInt(agentRow.agent_total, 10) > 0 ? {
+          healthy: parseInt(agentRow.agent_healthy, 10),
+          stale: parseInt(agentRow.agent_stale, 10),
+          offline: parseInt(agentRow.agent_offline, 10),
+          total: parseInt(agentRow.agent_total, 10),
+        } : undefined,
         groups: groupsResult.rows.map((g: any) => ({
           id: g.id,
           name: g.name,
