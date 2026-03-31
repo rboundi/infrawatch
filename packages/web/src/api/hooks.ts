@@ -12,6 +12,9 @@ import type {
   PaginatedResponse,
   HostsParams,
   AlertsParams,
+  UnifiedAlert,
+  UnifiedAlertsSummary,
+  UnifiedAlertsParams,
 } from "./types";
 
 // ─── Queries ───
@@ -684,5 +687,23 @@ export function useDeleteAnnotation() {
   return useMutation({
     mutationFn: (id: string) => del(`/dependencies/annotations/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dependencies"] }); },
+  });
+}
+
+// ─── Unified Alerts ───
+
+export function useUnifiedAlerts(params: UnifiedAlertsParams = {}) {
+  return useQuery({
+    queryKey: ["unified-alerts", params],
+    queryFn: () =>
+      get<PaginatedResponse<UnifiedAlert>>("/alerts/unified", params as Record<string, unknown>),
+  });
+}
+
+export function useUnifiedAlertsSummary() {
+  return useQuery({
+    queryKey: ["unified-alerts", "summary"],
+    queryFn: () => get<UnifiedAlertsSummary>("/alerts/unified/summary"),
+    refetchInterval: 30_000,
   });
 }

@@ -9,7 +9,6 @@ import {
   Scan,
   Sun,
   Moon,
-  Hourglass,
   FileText,
   BellRing,
   Network,
@@ -44,7 +43,6 @@ const primaryNav: NavItem[] = [
 // Tier 2 — collapsible "Setup" section
 const setupNav: NavItem[] = [
   { to: "/dependencies", label: "Dependencies", icon: Network },
-  { to: "/eol", label: "EOL Tracker", icon: Hourglass },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/targets", label: "Scan Targets", icon: Radar },
   { to: "/settings/notifications", label: "Notifications", icon: BellRing },

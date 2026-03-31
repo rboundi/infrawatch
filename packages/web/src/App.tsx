@@ -15,7 +15,6 @@ import { ScanTargetsPage } from "./pages/ScanTargetsPage";
 import { HostDetailPage } from "./pages/HostDetailPage";
 import { TargetFormPage } from "./pages/TargetFormPage";
 import { DiscoveryPage } from "./pages/DiscoveryPage";
-import { EolPage } from "./pages/EolPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
@@ -72,7 +71,7 @@ export default function App() {
                 <Route path="compliance" element={<Navigate to="/" replace />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
                 <Route path="alerts" element={<AlertsPage />} />
-                <Route path="eol" element={<EolPage />} />
+                <Route path="eol" element={<Navigate to="/alerts" replace />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings/notifications" element={<NotificationsPage />} />
                 <Route path="targets" element={<ScanTargetsPage />} />

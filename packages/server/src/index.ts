@@ -15,6 +15,7 @@ import { createAlertRoutes, createStatsRoutes } from "./routes/alerts.js";
 import { createDiscoveryRoutes } from "./routes/discovery.js";
 import { createChangeRoutes } from "./routes/changes.js";
 import { createEolRoutes } from "./routes/eol.js";
+import { createUnifiedAlertRoutes } from "./routes/unified-alerts.js";
 import { createReportRoutes } from "./routes/reports.js";
 import { createNotificationRoutes } from "./routes/notifications.js";
 import { createGroupRoutes } from "./routes/groups.js";
@@ -220,6 +221,7 @@ app.use("/api/v1/auth", createAuthRoutes(pool, logger, userService, sessionServi
 app.use("/api/v1/targets", requireAuth, createScanTargetRoutes(pool, logger, audit, scanLogger));
 app.use("/api/v1/targets/:targetId/scan-logs", requireAuth, createScanLogRoutes(pool, logger, scanLogger));
 app.use("/api/v1/hosts", requireAuth, createHostRoutes(pool, logger, audit));
+app.use("/api/v1/alerts/unified", requireAuth, createUnifiedAlertRoutes(pool, logger));
 app.use("/api/v1/alerts", requireAuth, createAlertRoutes(pool, logger, audit));
 app.use("/api/v1/stats", requireAuth, createStatsRoutes(pool, logger));
 app.use("/api/v1/discovery", requireAuth, createDiscoveryRoutes(pool, logger, audit));

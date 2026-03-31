@@ -633,3 +633,47 @@ export interface DependencyAnnotation {
   created_by: string | null;
   created_at: string;
 }
+
+// ─── Unified alerts ───
+
+export interface UnifiedAlert {
+  id: string;
+  type: "vulnerability" | "eol";
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  hostname: string;
+  hostId: string;
+  packageName: string | null;
+  currentVersion: string | null;
+  availableVersion: string | null;
+  productName: string | null;
+  eolDate: string | null;
+  daysPastEol: number | null;
+  successorVersion: string | null;
+  status: string;
+  acknowledged: boolean;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+  notes: string | null;
+  exemptionReason: string | null;
+  createdAt: string;
+}
+
+export interface UnifiedAlertsSummary {
+  total: number;
+  unacknowledged: number;
+  byType: { vulnerability: number; eol: number };
+  bySeverity: { critical: number; high: number; medium: number; low: number; info: number };
+}
+
+export interface UnifiedAlertsParams {
+  type?: string;
+  severity?: string;
+  status?: string;
+  search?: string;
+  hostId?: string;
+  groupId?: string;
+  sortBy?: string;
+  order?: string;
+  page?: number;
+  limit?: number;
+}
