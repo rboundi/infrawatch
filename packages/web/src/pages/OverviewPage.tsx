@@ -283,7 +283,7 @@ export function OverviewPage() {
           <CardSkeleton />
         ) : stats.data ? (
           <button
-            onClick={() => navigate("/targets")}
+            onClick={() => navigate("/setup/targets")}
             className="rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-800"
           >
             <div className="flex items-center gap-3">

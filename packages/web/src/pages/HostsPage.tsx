@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Search,
   ChevronUp,
@@ -12,6 +12,7 @@ import {
   PanelLeftOpen,
   Settings2,
   X,
+  Server,
 } from "lucide-react";
 import { useHosts, useGroups, useComplianceHosts } from "../api/hooks";
 import { StatusBadge } from "../components/StatusBadge";
@@ -481,8 +482,17 @@ export function HostsPage() {
                 )}
               </>
             ) : (
-              <div className="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                No hosts found.
+              <div className="px-6 py-12 text-center">
+                <Server className="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No hosts found</p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Add a scan target or deploy an agent to start discovering hosts.
+                </p>
+                <div className="mt-4 flex items-center justify-center">
+                  <Link to="/setup/targets/new" className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                    Add Scan Target
+                  </Link>
+                </div>
               </div>
             )}
           </div>

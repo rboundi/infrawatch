@@ -564,7 +564,7 @@ export function SettingsPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">System Settings</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Configure InfraWatch system behavior, scanning, alerts, and notifications.
         </p>

@@ -59,7 +59,7 @@ export function ScanTargetsPage() {
           Scan Targets
         </h2>
         <Link
-          to="/targets/new"
+          to="/setup/targets/new"
           className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
           <Plus className="h-4 w-4" />
@@ -89,7 +89,7 @@ export function ScanTargetsPage() {
             Add a target to start discovering your infrastructure.
           </p>
           <Link
-            to="/targets/new"
+            to="/setup/targets/new"
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             <Plus className="h-4 w-4" />
@@ -300,7 +300,7 @@ function TargetCard({ target }: { target: ScanTarget }) {
               Test
             </button>
             <Link
-              to={`/targets/${target.id}/edit`}
+              to={`/setup/targets/${target.id}/edit`}
               className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
               title="Edit"
             >

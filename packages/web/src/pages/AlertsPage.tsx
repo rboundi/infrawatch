@@ -263,8 +263,12 @@ export function AlertsPage() {
             )}
           </>
         ) : (
-          <div className="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            No alerts found.
+          <div className="px-6 py-12 text-center">
+            <Check className="mx-auto mb-3 h-8 w-8 text-green-300 dark:text-green-700" />
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">All clear! No open alerts.</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              Alerts will appear here when vulnerabilities or EOL issues are detected.
+            </p>
           </div>
         )}
       </div>

@@ -49,7 +49,7 @@ export function NotificationsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Notifications</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
         <button
           onClick={() => { setEditChannel(null); setShowForm(true); }}
           className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Breadcrumbs } from "./Breadcrumbs";
+import { ShortcutsModal } from "./ShortcutsModal";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
@@ -42,10 +45,10 @@ const primaryNav: NavItem[] = [
 
 // Tier 2 — collapsible "Setup" section
 const setupNav: NavItem[] = [
-  { to: "/dependencies", label: "Dependencies", icon: Network },
-  { to: "/reports", label: "Reports", icon: FileText },
-  { to: "/targets", label: "Scan Targets", icon: Radar },
-  { to: "/settings/notifications", label: "Notifications", icon: BellRing },
+  { to: "/setup/dependencies", label: "Dependencies", icon: Network },
+  { to: "/setup/reports", label: "Reports", icon: FileText },
+  { to: "/setup/targets", label: "Scan Targets", icon: Radar },
+  { to: "/setup/notifications", label: "Notifications", icon: BellRing },
 ];
 
 // Tier 3 — collapsible "Admin" section (admin-only)
@@ -83,6 +86,8 @@ export function Layout() {
   const [setupOpen, toggleSetup] = useSectionToggle("setup", false);
   const [adminOpen, toggleAdmin] = useSectionToggle("admin", false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useKeyboardShortcuts(navigate, setShowShortcuts);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close user menu on outside click
@@ -261,10 +266,22 @@ export function Layout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+        <main className="flex-1 overflow-auto p-6 pt-0">
+          <Breadcrumbs />
+          <div className="pt-4">
+            <Outlet />
+          </div>
         </main>
       </div>
+
+      {/* Keyboard shortcuts */}
+      <button
+        onClick={() => setShowShortcuts(true)}
+        className="fixed bottom-4 right-4 z-40 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-semibold text-gray-500 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400"
+      >
+        ?
+      </button>
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

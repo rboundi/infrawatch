@@ -67,15 +67,25 @@ export default function App() {
                 <Route path="hosts/:id" element={<HostDetailPage />} />
                 <Route path="groups" element={<Navigate to="/hosts" replace />} />
                 <Route path="groups/:id" element={<Navigate to="/hosts" replace />} />
-                <Route path="dependencies" element={<DependenciesPage />} />
-                <Route path="compliance" element={<Navigate to="/" replace />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
                 <Route path="alerts" element={<AlertsPage />} />
+
+                {/* Setup routes */}
+                <Route path="setup/targets" element={<ScanTargetsPage />} />
+                <Route path="setup/targets/new" element={<TargetFormPage />} />
+                <Route path="setup/targets/:id/edit" element={<TargetFormPage />} />
+                <Route path="setup/reports" element={<ReportsPage />} />
+                <Route path="setup/notifications" element={<NotificationsPage />} />
+                <Route path="setup/dependencies" element={<DependenciesPage />} />
+
+                {/* Legacy redirects */}
+                <Route path="dependencies" element={<Navigate to="/setup/dependencies" replace />} />
+                <Route path="compliance" element={<Navigate to="/" replace />} />
                 <Route path="eol" element={<Navigate to="/alerts" replace />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="settings/notifications" element={<NotificationsPage />} />
-                <Route path="targets" element={<ScanTargetsPage />} />
-                <Route path="targets/new" element={<TargetFormPage />} />
+                <Route path="reports" element={<Navigate to="/setup/reports" replace />} />
+                <Route path="settings/notifications" element={<Navigate to="/setup/notifications" replace />} />
+                <Route path="targets" element={<Navigate to="/setup/targets" replace />} />
+                <Route path="targets/new" element={<Navigate to="/setup/targets/new" replace />} />
                 <Route path="targets/:id/edit" element={<TargetFormPage />} />
                 <Route path="profile/sessions" element={<SessionsPage />} />
 

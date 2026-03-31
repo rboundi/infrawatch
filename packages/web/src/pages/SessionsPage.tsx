@@ -85,7 +85,7 @@ export function SessionsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Active Sessions</h1>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Active Sessions</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Manage your active login sessions across devices
           </p>

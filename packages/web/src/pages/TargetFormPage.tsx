@@ -193,12 +193,12 @@ export function TargetFormPage() {
     if (isEdit && id) {
       updateMutation.mutate(
         { id, name, type, connectionConfig, scanIntervalHours },
-        { onSuccess: () => navigate("/targets") }
+        { onSuccess: () => navigate("/setup/targets") }
       );
     } else {
       createMutation.mutate(
         { name, type, connectionConfig, scanIntervalHours },
-        { onSuccess: () => navigate("/targets") }
+        { onSuccess: () => navigate("/setup/targets") }
       );
     }
   };
@@ -239,7 +239,7 @@ export function TargetFormPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <Link
-          to="/targets"
+          to="/setup/targets"
           className="mb-3 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -365,7 +365,7 @@ export function TargetFormPage() {
             {isPending ? "Saving..." : isEdit ? "Update Target" : "Create Target"}
           </button>
           <Link
-            to="/targets"
+            to="/setup/targets"
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             Cancel
