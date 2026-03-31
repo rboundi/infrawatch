@@ -42,6 +42,8 @@ export interface HostSummary {
   scanTargetName: string | null;
   packageCount: number;
   openAlertCount: number;
+  reportingMethod?: "scanner" | "agent";
+  agentVersion?: string | null;
 }
 
 export interface HostDetail extends HostSummary {

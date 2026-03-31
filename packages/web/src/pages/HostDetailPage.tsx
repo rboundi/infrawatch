@@ -10,6 +10,7 @@ import {
   Server,
   Package,
   Cog,
+  Cpu,
   Hourglass,
   Wrench,
   Layers,
@@ -168,6 +169,12 @@ function HostHeader({ host, hostId }: { host: HostDetail; hostId: string }) {
               {host.environmentTag && (
                 <span className="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
                   {host.environmentTag}
+                </span>
+              )}
+              {host.reportingMethod === "agent" && (
+                <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 text-xs font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                  <Cpu className="h-3 w-3" />
+                  Agent{host.agentVersion ? ` v${host.agentVersion}` : ""}
                 </span>
               )}
             </div>

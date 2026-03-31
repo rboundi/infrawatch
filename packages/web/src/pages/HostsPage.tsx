@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Radar, Cpu } from "lucide-react";
 import { useHosts, useGroups } from "../api/hooks";
 import { StatusBadge } from "../components/StatusBadge";
 import { TableSkeleton } from "../components/Skeleton";
@@ -161,6 +161,7 @@ export function HostsPage() {
                       { key: "packageCount", label: "Packages" },
                       { key: "alerts", label: "Open Alerts" },
                       { key: "lastSeenAt", label: "Last Seen" },
+                      { key: "reportingMethod", label: "Source" },
                       { key: "status", label: "Status" },
                     ].map((col) => (
                       <th
@@ -220,6 +221,9 @@ export function HostsPage() {
                         {timeAgo(host.lastSeenAt)}
                       </td>
                       <td className="px-4 py-2.5">
+                        <SourceBadge method={host.reportingMethod} />
+                      </td>
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <StatusDot s={host.status} />
                           <StatusBadge status={host.status} />
@@ -267,6 +271,23 @@ export function HostsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function SourceBadge({ method }: { method?: string }) {
+  if (method === "agent") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+        <Cpu className="h-3 w-3" />
+        Agent
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+      <Radar className="h-3 w-3" />
+      Scanner
+    </span>
   );
 }
 

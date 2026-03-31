@@ -26,6 +26,7 @@ import { CompliancePage } from "./pages/CompliancePage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
+import { AgentsPage } from "./pages/admin/AgentsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,6 +86,7 @@ export default function App() {
 
                 {/* Admin-only routes */}
                 <Route path="admin/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
+                <Route path="admin/agents" element={<RequireAdmin><AgentsPage /></RequireAdmin>} />
                 <Route path="admin/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
                 <Route path="admin/audit-log" element={<RequireAdmin><AuditLogPage /></RequireAdmin>} />
               </Route>

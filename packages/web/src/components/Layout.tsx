@@ -22,6 +22,7 @@ import {
   LogOut,
   ChevronDown,
   Monitor,
+  Cpu,
 } from "lucide-react";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useAuth } from "../contexts/AuthContext";
@@ -43,6 +44,7 @@ const nav = [
 
 const adminNav = [
   { to: "/admin/users", label: "Users", icon: Users },
+  { to: "/admin/agents", label: "Agents", icon: Cpu },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/audit-log", label: "Audit Log", icon: ScrollText },
 ];

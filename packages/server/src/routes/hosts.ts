@@ -449,6 +449,8 @@ function formatHostSummary(row: Record<string, unknown>) {
     detectedPlatform: row.detected_platform,
     discoveryMethod: row.discovery_method,
     openPorts: row.open_ports,
+    reportingMethod: row.reporting_method ?? "scanner",
+    agentVersion: row.agent_version ?? null,
   };
 }
 

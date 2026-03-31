@@ -1,4 +1,7 @@
 import { Router, type Request, type Response } from "express";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type pg from "pg";
 import type { Logger } from "pino";
 import type { HostInventory, ScanResult } from "@infrawatch/scanner";
@@ -256,6 +259,37 @@ export function createAgentReportRoutes(
       logger.error({ err }, "Failed to process agent heartbeat");
       res.status(500).json({ error: "Failed to process heartbeat" });
     }
+  });
+
+  // ─── Static agent script downloads (public, no auth) ───
+
+  const agentDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../agents");
+
+  function serveScript(res: Response, filePath: string, filename: string) {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.send(content);
+    } catch {
+      res.status(404).json({ error: `Script not found: ${filename}` });
+    }
+  }
+
+  router.get("/install/linux", (_req, res) => {
+    serveScript(res, resolve(agentDir, "linux/install.sh"), "install.sh");
+  });
+
+  router.get("/install/windows", (_req, res) => {
+    serveScript(res, resolve(agentDir, "windows/Install-InfraWatchAgent.ps1"), "Install-InfraWatchAgent.ps1");
+  });
+
+  router.get("/script/linux", (_req, res) => {
+    serveScript(res, resolve(agentDir, "linux/infrawatch-agent.sh"), "infrawatch-agent.sh");
+  });
+
+  router.get("/script/windows", (_req, res) => {
+    serveScript(res, resolve(agentDir, "windows/infrawatch-agent.ps1"), "infrawatch-agent.ps1");
   });
 
   return router;

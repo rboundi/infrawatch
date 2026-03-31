@@ -35,6 +35,7 @@ const TYPE_COLORS: Record<string, string> = {
   vmware: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
   docker: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
   network_discovery: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
+  agent: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -45,6 +46,7 @@ const TYPE_LABELS: Record<string, string> = {
   vmware: "VMware",
   docker: "Docker",
   network_discovery: "Network Discovery",
+  agent: "Agent",
 };
 
 export function ScanTargetsPage() {
@@ -249,56 +251,64 @@ function TargetCard({ target }: { target: ScanTarget }) {
 
       {/* Actions */}
       <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
-        {isRunning ? (
-          <button
-            onClick={() => cancelScan.mutate(target.id)}
-            disabled={cancelScan.isPending}
-            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-900/20"
-            title="Stop Scan"
-          >
-            {cancelScan.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Square className="h-3.5 w-3.5" />
-            )}
-            Stop
-          </button>
+        {target.type === "agent" ? (
+          <span className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+            Agent-managed — reports are pushed by the agent
+          </span>
         ) : (
-          <button
-            onClick={handleScanNow}
-            disabled={triggerScan.isPending}
-            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
-            title="Scan Now"
-          >
-            {triggerScan.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <>
+            {isRunning ? (
+              <button
+                onClick={() => cancelScan.mutate(target.id)}
+                disabled={cancelScan.isPending}
+                className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-900/20"
+                title="Stop Scan"
+              >
+                {cancelScan.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Square className="h-3.5 w-3.5" />
+                )}
+                Stop
+              </button>
             ) : (
-              <Play className="h-3.5 w-3.5" />
+              <button
+                onClick={handleScanNow}
+                disabled={triggerScan.isPending}
+                className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
+                title="Scan Now"
+              >
+                {triggerScan.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                Scan
+              </button>
             )}
-            Scan
-          </button>
+            <button
+              onClick={handleTest}
+              disabled={testStream.isStreaming}
+              className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
+              title="Test Connection"
+            >
+              {testStream.isStreaming ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Zap className="h-3.5 w-3.5" />
+              )}
+              Test
+            </button>
+            <Link
+              to={`/targets/${target.id}/edit`}
+              className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+              title="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Link>
+          </>
         )}
-        <button
-          onClick={handleTest}
-          disabled={testStream.isStreaming}
-          className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
-          title="Test Connection"
-        >
-          {testStream.isStreaming ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Zap className="h-3.5 w-3.5" />
-          )}
-          Test
-        </button>
-        <Link
-          to={`/targets/${target.id}/edit`}
-          className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-          title="Edit"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Edit
-        </Link>
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
