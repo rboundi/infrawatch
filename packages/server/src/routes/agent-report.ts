@@ -81,6 +81,17 @@ export function createAgentReportRoutes(
 
       const body = req.body;
 
+      // Sanitize: strip null bytes from all string fields to prevent DB errors
+      if (typeof body.hostname === "string") {
+        body.hostname = body.hostname.replace(/\0/g, "");
+      }
+      if (typeof body.os === "string") {
+        body.os = body.os.replace(/\0/g, "");
+      }
+      if (typeof body.ip === "string") {
+        body.ip = body.ip.replace(/\0/g, "");
+      }
+
       // Basic validation
       if (!body.hostname || typeof body.hostname !== "string") {
         res.status(400).json({ error: "hostname is required and must be a string" });

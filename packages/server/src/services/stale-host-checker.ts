@@ -53,10 +53,13 @@ export class StaleHostChecker {
 
   private async check(): Promise<void> {
     try {
+      // Exclude agent-reported hosts — those are handled by AgentHealthChecker
+      // with a separate (typically shorter) threshold.
       const result = await this.pool.query<{ id: string; hostname: string; scan_target_id: string | null }>(
         `UPDATE hosts
          SET status = 'stale'
          WHERE status = 'active'
+           AND (reporting_method IS NULL OR reporting_method != 'agent')
            AND last_seen_at < NOW() - ($1 || ' hours')::interval
          RETURNING id, hostname, scan_target_id`,
         [this.staleThresholdHours]

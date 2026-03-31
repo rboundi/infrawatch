@@ -235,21 +235,18 @@ export class AgentTokenService {
    * so we need a scan_target record to link hosts to.
    */
   async getOrCreateScanTarget(token: AgentToken): Promise<string> {
-    // Check for existing
-    const existing = await this.pool.query(
-      `SELECT id FROM scan_targets WHERE type = 'agent' AND name = $1`,
-      [`agent:${token.id}`],
-    );
+    const targetName = `agent:${token.id}`;
 
-    if (existing.rows.length > 0) return existing.rows[0].id as string;
-
-    // Create new — connection_config stores empty encrypted JSON since encrypt requires MASTER_KEY
-    // Store raw empty JSON since agents don't need credentials
+    // Use INSERT ... ON CONFLICT with the scan_targets_agent_name_unique
+    // partial index to prevent race conditions when multiple concurrent
+    // reports arrive for the same token simultaneously.
     const result = await this.pool.query(
       `INSERT INTO scan_targets (name, type, connection_config, scan_interval_hours, enabled, last_scan_status)
        VALUES ($1, 'agent', '{}', 0, false, 'pending')
+       ON CONFLICT (name) WHERE type = 'agent'
+       DO UPDATE SET name = EXCLUDED.name
        RETURNING id`,
-      [`agent:${token.id}`],
+      [targetName],
     );
 
     return result.rows[0].id as string;
