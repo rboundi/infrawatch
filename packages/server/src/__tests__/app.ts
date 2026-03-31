@@ -17,6 +17,8 @@ import { createUserRoutes } from "../routes/users.js";
 import { createAuditRoutes } from "../routes/audit.js";
 import { createSettingsRoutes } from "../routes/settings.js";
 import { createScanLogRoutes } from "../routes/scan-logs.js";
+import { createAgentReportRoutes } from "../routes/agent-report.js";
+import { createAgentTokenRoutes } from "../routes/agent-tokens.js";
 import { createRequireAuth } from "../middleware/auth.js";
 import { createErrorHandler } from "../middleware/error-handler.js";
 import { AuditLogger } from "../services/audit-logger.js";
@@ -29,6 +31,7 @@ import { ImpactAnalyzer } from "../services/impact-analyzer.js";
 import { ComplianceScorer } from "../services/compliance-scorer.js";
 import { ReportGenerator } from "../services/reports/report-generator.js";
 import { NotificationService } from "../services/notifications/notification-service.js";
+import { AgentTokenService } from "../services/agent-token-service.js";
 import pino from "pino";
 
 const logger = pino({ level: "silent" });
@@ -55,6 +58,7 @@ export function getTestApp(): express.Express {
   const complianceScorer = new ComplianceScorer(pool, logger);
   const reportGenerator = new ReportGenerator(pool, logger);
   const notificationService = new NotificationService(pool, logger);
+  const agentTokenService = new AgentTokenService(pool, logger);
   const requireAuth = createRequireAuth(sessionService);
 
   // Health check (unauthenticated)
@@ -82,6 +86,8 @@ export function getTestApp(): express.Express {
   app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
   app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
   app.use("/api/v1/settings", requireAuth, createSettingsRoutes(pool, logger, settingsService, audit));
+  app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit));
+  app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit));
 
   // Error handler
   app.use(createErrorHandler(logger));

@@ -44,6 +44,9 @@ import { UserService } from "./services/user-service.js";
 import { SessionService } from "./services/session-service.js";
 import { ScanLogger } from "./services/scan-logger.js";
 import { createScanLogRoutes } from "./routes/scan-logs.js";
+import { createAgentReportRoutes } from "./routes/agent-report.js";
+import { createAgentTokenRoutes } from "./routes/agent-tokens.js";
+import { AgentTokenService } from "./services/agent-token-service.js";
 
 const logger = pino({ level: config.nodeEnv === "test" ? "silent" : "info" });
 const startedAt = Date.now();
@@ -162,6 +165,7 @@ app.get("/api/v1/health", async (_req, res) => {
 // ─── Scan trigger rate limit ───
 app.use("/api/v1/targets/:id/scan", scanLimiter);
 app.use("/api/v1/targets/:id/test", scanLimiter);
+app.use("/api/v1/agent/report", scanLimiter);
 
 // Login rate limiter
 app.use("/api/v1/auth/login", loginLimiter);
@@ -183,6 +187,7 @@ const userService = new UserService(pool, logger, settingsService);
 const sessionService = new SessionService(pool, logger, settingsService);
 const audit = new AuditLogger(pool, logger);
 const scanLogger = new ScanLogger(pool, logger);
+const agentTokenService = new AgentTokenService(pool, logger);
 const maintenance = new MaintenanceService(pool, logger, settingsService);
 const requireAuth = createRequireAuth(sessionService);
 
@@ -224,6 +229,9 @@ app.use("/api/v1/compliance", requireAuth, createComplianceRoutes(pool, logger, 
 app.use("/api/v1/users", requireAuth, createUserRoutes(pool, logger, userService, sessionService, audit));
 app.use("/api/v1/audit-log", requireAuth, createAuditRoutes(pool, logger));
 app.use("/api/v1/settings", requireAuth, createSettingsRoutes(pool, logger, settingsService, audit));
+app.use("/api/v1/agent-tokens", requireAuth, createAgentTokenRoutes(pool, logger, agentTokenService, audit));
+// Agent report/heartbeat — NOT behind requireAuth (uses its own bearer token authentication)
+app.use("/api/v1/agent", createAgentReportRoutes(pool, logger, agentTokenService, groupAssignment, audit));
 
 // ─── Error handler (must be last) ───
 app.use(createErrorHandler(logger));
