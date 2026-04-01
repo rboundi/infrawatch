@@ -275,8 +275,8 @@ export function AlertsPage() {
 
       {/* Exempt modal */}
       {exemptId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setExemptId(null)}>
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Exempt EOL Alert</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Provide a reason for exempting this alert.

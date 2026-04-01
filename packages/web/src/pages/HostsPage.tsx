@@ -242,7 +242,7 @@ export function HostsPage() {
                 <button
                   onClick={() => { setEditGroup(null); setShowGroupForm(true); }}
                   className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                  title="Manage Groups"
+                  aria-label="Manage Groups"
                 >
                   <Settings2 className="h-3.5 w-3.5" />
                 </button>
@@ -412,7 +412,7 @@ export function HostsPage() {
                             <td className="px-4 py-2.5">
                               <StatusDot s={host.status} />
                             </td>
-                            <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-gray-100">
+                            <td className="max-w-[200px] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-gray-100" title={host.hostname}>
                               {host.hostname}
                             </td>
                             <td className="px-4 py-2.5 font-mono text-xs text-gray-500 dark:text-gray-400">
