@@ -465,7 +465,7 @@ export function OverviewPage() {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                 EOL Warnings
               </h3>
-              <Link to="/eol" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+              <Link to="/alerts" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
                 View all
               </Link>
             </div>

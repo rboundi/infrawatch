@@ -188,9 +188,8 @@ function HostHeader({ host, hostId }: { host: HostDetail; hostId: string }) {
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Layers className="h-3.5 w-3.5 text-gray-400" />
                 {host.groups.map((g) => (
-                  <a
+                  <span
                     key={g.id}
-                    href={`/groups/${g.id}`}
                     className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
                     style={{ backgroundColor: g.color || "#6366f1" }}
                   >
@@ -198,7 +197,7 @@ function HostHeader({ host, hostId }: { host: HostDetail; hostId: string }) {
                     {g.assignedBy === "rule" && (
                       <span className="opacity-70 text-[10px]">(auto)</span>
                     )}
-                  </a>
+                  </span>
                 ))}
               </div>
             )}

@@ -17,7 +17,6 @@ import { TargetFormPage } from "./pages/TargetFormPage";
 import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
-import { DependenciesPage } from "./pages/DependenciesPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 import { AuditLogPage } from "./pages/admin/AuditLogPage";
@@ -76,11 +75,12 @@ export default function App() {
                 <Route path="setup/targets/:id/edit" element={<TargetFormPage />} />
                 <Route path="setup/reports" element={<ReportsPage />} />
                 <Route path="setup/notifications" element={<NotificationsPage />} />
-                <Route path="setup/dependencies" element={<DependenciesPage />} />
+                <Route path="setup/agents" element={<RequireAdmin><AgentsPage /></RequireAdmin>} />
 
                 {/* Legacy redirects */}
-                <Route path="dependencies" element={<Navigate to="/setup/dependencies" replace />} />
+                <Route path="dependencies" element={<Navigate to="/hosts" replace />} />
                 <Route path="compliance" element={<Navigate to="/" replace />} />
+                <Route path="compliance/hosts" element={<Navigate to="/hosts" replace />} />
                 <Route path="eol" element={<Navigate to="/alerts" replace />} />
                 <Route path="reports" element={<Navigate to="/setup/reports" replace />} />
                 <Route path="settings/notifications" element={<Navigate to="/setup/notifications" replace />} />

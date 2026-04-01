@@ -14,7 +14,6 @@ import {
   Moon,
   FileText,
   BellRing,
-  Network,
   Settings,
   Users,
   ScrollText,
@@ -45,16 +44,15 @@ const primaryNav: NavItem[] = [
 
 // Tier 2 — collapsible "Setup" section
 const setupNav: NavItem[] = [
-  { to: "/setup/dependencies", label: "Dependencies", icon: Network },
-  { to: "/setup/reports", label: "Reports", icon: FileText },
   { to: "/setup/targets", label: "Scan Targets", icon: Radar },
+  { to: "/setup/agents", label: "Agents", icon: Cpu },
+  { to: "/setup/reports", label: "Reports", icon: FileText },
   { to: "/setup/notifications", label: "Notifications", icon: BellRing },
 ];
 
 // Tier 3 — collapsible "Admin" section (admin-only)
 const adminNav: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/agents", label: "Agents", icon: Cpu },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/audit-log", label: "Audit Log", icon: ScrollText },
 ];
