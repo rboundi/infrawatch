@@ -28,7 +28,7 @@ import {
   useAcknowledgeAlert,
   useChanges,
   useChangeSummary,
-  useAlertsSummary,
+  useUnifiedAlertsSummary,
   useEolAlerts,
   useComplianceFleet,
 } from "../api/hooks";
@@ -95,7 +95,7 @@ export function OverviewPage() {
 
   // Data hooks — all fire in parallel
   const stats = useOverviewStats();
-  const alertsSummary = useAlertsSummary();
+  const alertsSummary = useUnifiedAlertsSummary();
   const compliance = useComplianceFleet();
   const recentAlerts = useAlerts({
     severity: "critical,high",
@@ -226,19 +226,19 @@ export function OverviewPage() {
               </div>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {alertsSummary.data.critical > 0 && (
+              {alertsSummary.data.bySeverity.critical > 0 && (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                  {alertsSummary.data.critical} Critical
+                  {alertsSummary.data.bySeverity.critical} Critical
                 </span>
               )}
-              {alertsSummary.data.high > 0 && (
+              {alertsSummary.data.bySeverity.high > 0 && (
                 <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                  {alertsSummary.data.high} High
+                  {alertsSummary.data.bySeverity.high} High
                 </span>
               )}
-              {alertsSummary.data.medium > 0 && (
+              {alertsSummary.data.bySeverity.medium > 0 && (
                 <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                  {alertsSummary.data.medium} Medium
+                  {alertsSummary.data.bySeverity.medium} Medium
                 </span>
               )}
             </div>

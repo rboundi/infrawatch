@@ -174,6 +174,7 @@ export function useAcknowledgeAlert() {
       patch<Alert>(`/alerts/${id}/acknowledge`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["unified-alerts"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
     },
   });
@@ -279,6 +280,7 @@ export function useAcknowledgeEolAlert() {
       patch<import("./types").EolAlert>(`/eol/alerts/${id}/acknowledge`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["eol"] });
+      qc.invalidateQueries({ queryKey: ["unified-alerts"] });
     },
   });
 }
@@ -290,6 +292,7 @@ export function useExemptEolAlert() {
       patch<import("./types").EolAlert>(`/eol/alerts/${id}/exempt`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["eol"] });
+      qc.invalidateQueries({ queryKey: ["unified-alerts"] });
     },
   });
 }

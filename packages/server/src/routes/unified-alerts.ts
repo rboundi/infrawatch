@@ -144,7 +144,7 @@ export function createUnifiedAlertRoutes(pool: pg.Pool, logger: Logger): Router 
       // Sort mapping
       const sortMap: Record<string, string> = {
         createdAt: "u.created_at",
-        severity: "CASE u.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END",
+        severity: "CASE u.severity WHEN 'critical' THEN 5 WHEN 'high' THEN 4 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 ELSE 1 END",
         hostname: "u.hostname",
       };
       const sortCol = sortMap[sortBy ?? "createdAt"] || "u.created_at";
