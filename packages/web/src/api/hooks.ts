@@ -184,9 +184,10 @@ export function useBulkAcknowledgeAlerts() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { alertIds: string[]; acknowledgedBy?: string; notes?: string }) =>
-      post<{ acknowledged: number; ids: string[] }>("/alerts/bulk-acknowledge", body),
+      patch<{ acknowledged: number; ids: string[] }>("/alerts/bulk-acknowledge", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["unified-alerts"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
     },
   });
@@ -479,7 +480,7 @@ export function useCreateGroup() {
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       post<import("./types").HostGroup>("/groups", body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); qc.invalidateQueries({ queryKey: ["hosts"] }); },
   });
 }
 
@@ -488,7 +489,7 @@ export function useUpdateGroup() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
       patch<import("./types").HostGroup>(`/groups/${id}`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); qc.invalidateQueries({ queryKey: ["hosts"] }); },
   });
 }
 
@@ -496,7 +497,7 @@ export function useDeleteGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => del(`/groups/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["groups"] }); qc.invalidateQueries({ queryKey: ["hosts"] }); },
   });
 }
 

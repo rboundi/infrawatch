@@ -75,6 +75,7 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
         hostname: "h.hostname",
         lastSeenAt: "h.last_seen_at",
         packageCount: "package_count",
+        compliance: "compliance_score",
       };
       const sortColumn = sortColumns[sortBy ?? "hostname"] ?? "h.hostname";
       const sortOrder = order?.toLowerCase() === "desc" ? "DESC" : "ASC";
@@ -103,11 +104,12 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
            h.agent_version,
            st.name AS scan_target_name,
            (SELECT COUNT(*) FROM discovered_packages dp WHERE dp.host_id = h.id AND dp.removed_at IS NULL) AS package_count,
-           (SELECT COUNT(*) FROM alerts a WHERE a.host_id = h.id AND a.acknowledged = false) AS open_alert_count
+           (SELECT COUNT(*) FROM alerts a WHERE a.host_id = h.id AND a.acknowledged = false) AS open_alert_count,
+           (SELECT cs.score FROM compliance_host_scores cs WHERE cs.host_id = h.id ORDER BY cs.calculated_at DESC LIMIT 1) AS compliance_score
          FROM hosts h
          LEFT JOIN scan_targets st ON st.id = h.scan_target_id
          ${whereClause}
-         ORDER BY ${sortColumn} ${sortOrder}
+         ORDER BY ${sortColumn} ${sortOrder} NULLS LAST
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
         [...values, limitNum, offset]
       );
@@ -135,7 +137,8 @@ export function createHostRoutes(pool: pg.Pool, logger: Logger, audit?: AuditLog
            h.*,
            st.name AS scan_target_name,
            (SELECT COUNT(*) FROM discovered_packages dp WHERE dp.host_id = h.id AND dp.removed_at IS NULL) AS package_count,
-           (SELECT COUNT(*) FROM alerts a WHERE a.host_id = h.id AND a.acknowledged = false) AS open_alert_count
+           (SELECT COUNT(*) FROM alerts a WHERE a.host_id = h.id AND a.acknowledged = false) AS open_alert_count,
+           (SELECT cs.score FROM compliance_host_scores cs WHERE cs.host_id = h.id ORDER BY cs.calculated_at DESC LIMIT 1) AS compliance_score
          FROM hosts h
          LEFT JOIN scan_targets st ON st.id = h.scan_target_id
          WHERE h.id = $1`,
@@ -453,6 +456,7 @@ function formatHostSummary(row: Record<string, unknown>) {
     openPorts: row.open_ports,
     reportingMethod: row.reporting_method ?? "scanner",
     agentVersion: row.agent_version ?? null,
+    complianceScore: row.compliance_score != null ? parseInt(row.compliance_score as string, 10) : null,
   };
 }
 

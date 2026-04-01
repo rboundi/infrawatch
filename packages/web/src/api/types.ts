@@ -50,6 +50,12 @@ export interface HostSummary {
   openAlertCount: number;
   reportingMethod?: "scanner" | "agent";
   agentVersion?: string | null;
+  macAddress?: string | null;
+  macVendor?: string | null;
+  detectedPlatform?: string | null;
+  discoveryMethod?: string | null;
+  openPorts?: number[] | null;
+  complianceScore?: number | null;
 }
 
 export interface HostDetail extends HostSummary {
